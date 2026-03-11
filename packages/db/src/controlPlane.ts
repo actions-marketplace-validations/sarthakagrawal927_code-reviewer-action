@@ -109,6 +109,8 @@ export type UpsertPullRequestInput = {
   headRef?: string;
   headSha?: string;
   state: PullRequestRecord['state'];
+  isAgentAuthored?: boolean;
+  agentName?: string;
   mergedAt?: string;
   closedAt?: string;
 };
@@ -120,6 +122,9 @@ export type CreateReviewRunInput = {
   headSha: string;
   triggerSource?: ReviewRunRecord['triggerSource'];
   status: ReviewRunRecord['status'];
+  reviewMode?: ReviewRunRecord['reviewMode'];
+  reviewAction?: ReviewRunRecord['reviewAction'];
+  parentReviewRunId?: string;
   scoreVersion?: string;
   startedAt?: string;
 };
@@ -151,7 +156,7 @@ export type UpsertWorkspaceSecretInput = Omit<WorkspaceSecretRecord, 'id' | 'cre
 export type UpdateReviewRunPatch = Partial<
   Pick<
     ReviewRunRecord,
-    'status' | 'scoreComposite' | 'findingsCount' | 'completedAt' | 'errorMessage' | 'scoreVersion'
+    'status' | 'scoreComposite' | 'findingsCount' | 'completedAt' | 'errorMessage' | 'scoreVersion' | 'reviewAction'
   >
 >;
 
@@ -216,6 +221,11 @@ export interface ControlPlaneDatabase {
     input: Omit<ReviewFindingRecord, 'id' | 'createdAt'> & { createdAt?: string }
   ): Promise<ReviewFindingRecord>;
   listReviewFindingsByRun(reviewRunId: string): Promise<ReviewFindingRecord[]>;
+  updateReviewFinding(
+    findingId: string,
+    patch: Partial<Pick<ReviewFindingRecord, 'status'>>
+  ): Promise<ReviewFindingRecord | undefined>;
+  getLatestCompletedReviewRun(pullRequestId: string): Promise<ReviewRunRecord | undefined>;
 
   createIndexingRun(input: CreateIndexingRunInput): Promise<IndexingJobRecord>;
   updateIndexingRun(indexingRunId: string, patch: UpdateIndexingRunPatch): Promise<IndexingJobRecord | undefined>;
@@ -609,6 +619,8 @@ export class InMemoryControlPlaneDatabase implements ControlPlaneDatabase {
       headRef: input.headRef,
       headSha: input.headSha,
       state: input.state,
+      isAgentAuthored: input.isAgentAuthored ?? existing?.isAgentAuthored ?? false,
+      agentName: input.agentName ?? existing?.agentName,
       mergedAt: input.mergedAt,
       closedAt: input.closedAt,
       createdAt: existing?.createdAt || timestamp,
@@ -640,6 +652,9 @@ export class InMemoryControlPlaneDatabase implements ControlPlaneDatabase {
       headSha: input.headSha,
       triggerSource: input.triggerSource,
       status: input.status,
+      reviewMode: input.reviewMode || 'standard',
+      reviewAction: input.reviewAction || 'COMMENT',
+      parentReviewRunId: input.parentReviewRunId,
       scoreVersion: input.scoreVersion,
       startedAt: input.startedAt || nowIso()
     };
@@ -691,9 +706,12 @@ export class InMemoryControlPlaneDatabase implements ControlPlaneDatabase {
       severity: input.severity,
       title: input.title,
       summary: input.summary,
+      suggestion: input.suggestion,
       filePath: input.filePath,
       line: input.line,
       confidence: input.confidence,
+      status: input.status || 'open',
+      findingFingerprint: input.findingFingerprint,
       createdAt: input.createdAt || nowIso()
     };
 
@@ -704,6 +722,27 @@ export class InMemoryControlPlaneDatabase implements ControlPlaneDatabase {
   async listReviewFindingsByRun(reviewRunId: string): Promise<ReviewFindingRecord[]> {
     const findings = Array.from(this.reviewFindings.values()).filter(item => item.reviewRunId === reviewRunId);
     return clone(findings);
+  }
+
+  async updateReviewFinding(
+    findingId: string,
+    patch: Partial<Pick<ReviewFindingRecord, 'status'>>
+  ): Promise<ReviewFindingRecord | undefined> {
+    const existing = this.reviewFindings.get(findingId);
+    if (!existing) {
+      return undefined;
+    }
+
+    const next: ReviewFindingRecord = { ...existing, ...patch };
+    this.reviewFindings.set(findingId, next);
+    return clone(next);
+  }
+
+  async getLatestCompletedReviewRun(pullRequestId: string): Promise<ReviewRunRecord | undefined> {
+    const runs = Array.from(this.reviewRuns.values())
+      .filter(item => item.pullRequestId === pullRequestId && item.status === 'completed')
+      .sort((a, b) => compareIsoDesc(a.startedAt, b.startedAt));
+    return runs.length > 0 ? clone(runs[0]) : undefined;
   }
 
   async createIndexingRun(input: CreateIndexingRunInput): Promise<IndexingJobRecord> {

@@ -22,6 +22,7 @@ import {
 } from '@code-reviewer/db';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { Context, Hono } from 'hono';
+import { detectAgent } from './agentDetection';
 
 type ApiWorkerBindings = {
   COCKROACH_DATABASE_URL?: string;
@@ -2065,6 +2066,16 @@ app.post('/v1/webhooks/github', async c => {
       const repositories = await getAllRepositories();
       const repository = repositories.find(item => item.fullName === repositoryRef.fullName);
       if (repository) {
+        // Detect agent-authored PRs
+        const prBodyRaw = isObject(payload.pull_request) && typeof (payload.pull_request as Record<string, unknown>).body === 'string'
+          ? (payload.pull_request as Record<string, unknown>).body as string
+          : undefined;
+        const agentResult = detectAgent({
+          authorLogin: pullRequestPayload.authorGithubLogin,
+          prBody: prBodyRaw,
+          headRef: pullRequestPayload.headRef,
+        });
+
         const pullRequest = await db.upsertPullRequest({
           repositoryId: repository.id,
           githubPrId: pullRequestPayload.githubPrId,
@@ -2075,12 +2086,25 @@ app.post('/v1/webhooks/github', async c => {
           headRef: pullRequestPayload.headRef,
           headSha: pullRequestPayload.headSha,
           state: pullRequestPayload.state,
+          isAgentAuthored: agentResult.isAgentAuthored,
+          agentName: agentResult.agentName,
           mergedAt: pullRequestPayload.state === 'merged' ? nowIso() : undefined,
           closedAt: pullRequestPayload.state === 'closed' ? nowIso() : undefined
         });
 
         const action = typeof payload.action === 'string' ? payload.action : '';
         if (actionCanTriggerReview(action)) {
+          const reviewMode = pullRequest.isAgentAuthored ? 'agent' : 'standard';
+
+          // On synchronize (push), link to previous completed review run
+          let parentReviewRunId: string | undefined;
+          if (action === 'synchronize' && pullRequest.id) {
+            const latestRun = await db.getLatestCompletedReviewRun(pullRequest.id);
+            if (latestRun) {
+              parentReviewRunId = latestRun.id;
+            }
+          }
+
           const reviewRun = await db.createReviewRun({
             repositoryId: repository.id,
             pullRequestId: pullRequest.id,
@@ -2088,6 +2112,8 @@ app.post('/v1/webhooks/github', async c => {
             headSha: pullRequest.headSha || `webhook-${Date.now()}`,
             triggerSource: 'webhook',
             status: 'queued',
+            reviewMode,
+            parentReviewRunId,
             scoreVersion: ACTION_SCORE_VERSION,
             startedAt: nowIso()
           });
@@ -2095,6 +2121,49 @@ app.post('/v1/webhooks/github', async c => {
         }
       } else {
         processingStatus = 'ignored';
+      }
+    } else {
+      processingStatus = 'ignored';
+    }
+  } else if (eventName === 'issue_comment' && isObject(payload)) {
+    // Handle @codevetter mention in PR comments
+    const action = typeof payload.action === 'string' ? payload.action : '';
+    const comment = isObject(payload.comment) ? payload.comment : null;
+    const issue = isObject(payload.issue) ? payload.issue : null;
+    const commentBody = comment && typeof comment.body === 'string' ? comment.body : '';
+    const isPr = issue && isObject(issue.pull_request);
+
+    if (action === 'created' && isPr && /\b@codevetter\b/i.test(commentBody)) {
+      const repositoryRef = parseGitHubRepositoryReference(payload);
+      const prNumber = issue && typeof issue.number === 'number' ? issue.number : null;
+
+      if (repositoryRef && prNumber) {
+        const repositories = await getAllRepositories();
+        const repository = repositories.find(item => item.fullName === repositoryRef.fullName);
+        if (repository) {
+          // Find existing PR record
+          const pullRequests = await db.listPullRequestsByRepository(repository.id);
+          const pullRequest = pullRequests.find(pr => pr.prNumber === prNumber);
+
+          if (pullRequest) {
+            const reviewMode = pullRequest.isAgentAuthored ? 'agent' : 'standard';
+            const latestRun = await db.getLatestCompletedReviewRun(pullRequest.id);
+
+            const reviewRun = await db.createReviewRun({
+              repositoryId: repository.id,
+              pullRequestId: pullRequest.id,
+              prNumber: pullRequest.prNumber,
+              headSha: pullRequest.headSha || `mention-${Date.now()}`,
+              triggerSource: 'webhook',
+              status: 'queued',
+              reviewMode,
+              parentReviewRunId: latestRun?.id,
+              scoreVersion: ACTION_SCORE_VERSION,
+              startedAt: nowIso()
+            });
+            createdReviewRunId = reviewRun.id;
+          }
+        }
       }
     } else {
       processingStatus = 'ignored';
@@ -2232,10 +2301,111 @@ app.post('/v1/actions/reviews/trigger', async c => {
   return jsonResponse(
     {
       accepted: true,
-      run
+      run,
+      statusUrl: `/v1/reviews/${run.id}/status`
     },
     202
   );
+});
+
+// ── Agent Status API (Phase 5) ────────────────────────────────────────────────
+
+app.get('/v1/repos/:owner/:repo/pulls/:prNumber/review-status', async c => {
+  const expectedToken = c.env.PLATFORM_ACTION_TOKEN?.trim();
+  if (!expectedToken) {
+    return jsonResponse({ error: 'not_configured', message: 'PLATFORM_ACTION_TOKEN is not configured.' }, 503);
+  }
+
+  const bearerToken = readBearerToken(c.req.header('authorization'));
+  if (!bearerToken || !equalConstantTime(bearerToken, expectedToken)) {
+    return jsonResponse({ error: 'unauthorized', message: 'Missing or invalid bearer token.' }, 401);
+  }
+
+  const owner = c.req.param('owner');
+  const repo = c.req.param('repo');
+  const prNumberRaw = c.req.param('prNumber');
+  const prNumber = Number(prNumberRaw);
+  const fullName = `${owner}/${repo}`;
+
+  if (!Number.isInteger(prNumber) || prNumber <= 0) {
+    return jsonResponse({ error: 'invalid_pr_number', message: 'prNumber must be a positive integer.' }, 400);
+  }
+
+  const repositories = await getAllRepositories();
+  const repository = repositories.find(item => item.fullName === fullName);
+  if (!repository) {
+    return jsonResponse({ error: 'repository_not_found', message: `Repository ${fullName} not registered.` }, 404);
+  }
+
+  const pullRequests = await db.listPullRequestsByRepository(repository.id);
+  const pullRequest = pullRequests.find(pr => pr.prNumber === prNumber);
+  if (!pullRequest) {
+    return jsonResponse({ error: 'pull_request_not_found', message: `PR #${prNumber} not found.` }, 404);
+  }
+
+  const runs = await db.listReviewRunsByPullRequest(pullRequest.id);
+  const latestRun = runs.length > 0 ? runs[0] : null;
+
+  if (!latestRun) {
+    return jsonResponse({ status: 'no_reviews', prNumber, repository: fullName });
+  }
+
+  const findingsCount = latestRun.findingsCount ?? 0;
+  return jsonResponse({
+    reviewRunId: latestRun.id,
+    status: latestRun.status,
+    score: latestRun.scoreComposite,
+    action: latestRun.reviewAction,
+    reviewMode: latestRun.reviewMode,
+    findingsCount,
+    prNumber,
+    repository: fullName,
+    isAgentAuthored: pullRequest.isAgentAuthored,
+    agentName: pullRequest.agentName,
+    completedAt: latestRun.completedAt,
+  });
+});
+
+app.get('/v1/reviews/:reviewRunId/status', async c => {
+  const expectedToken = c.env.PLATFORM_ACTION_TOKEN?.trim();
+  if (!expectedToken) {
+    return jsonResponse({ error: 'not_configured', message: 'PLATFORM_ACTION_TOKEN is not configured.' }, 503);
+  }
+
+  const bearerToken = readBearerToken(c.req.header('authorization'));
+  if (!bearerToken || !equalConstantTime(bearerToken, expectedToken)) {
+    return jsonResponse({ error: 'unauthorized', message: 'Missing or invalid bearer token.' }, 401);
+  }
+
+  const reviewRunId = c.req.param('reviewRunId');
+  const run = await db.getReviewRunById(reviewRunId);
+  if (!run) {
+    return jsonResponse({ error: 'review_not_found', message: `Review run ${reviewRunId} not found.` }, 404);
+  }
+
+  const findings = await db.listReviewFindingsByRun(reviewRunId);
+
+  return jsonResponse({
+    reviewRunId: run.id,
+    status: run.status,
+    score: run.scoreComposite,
+    action: run.reviewAction,
+    reviewMode: run.reviewMode,
+    parentReviewRunId: run.parentReviewRunId,
+    findingsCount: run.findingsCount,
+    completedAt: run.completedAt,
+    findings: findings.map(f => ({
+      id: f.id,
+      severity: f.severity,
+      title: f.title,
+      summary: f.summary,
+      suggestion: f.suggestion,
+      filePath: f.filePath,
+      line: f.line,
+      status: f.status,
+      findingFingerprint: f.findingFingerprint,
+    })),
+  });
 });
 
 app.all('*', async c => {

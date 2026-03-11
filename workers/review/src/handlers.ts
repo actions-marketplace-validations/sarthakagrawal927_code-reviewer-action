@@ -1,6 +1,6 @@
 import { ControlPlaneDatabase, createControlPlaneDatabase } from '@code-reviewer/db';
 import { AIGatewayClient } from '@code-reviewer/ai-gateway-client';
-import { IndexingJob, ReviewJob, WorkerJob } from '@code-reviewer/shared-types';
+import { IndexingJob, ReviewAction, ReviewFindingRecord, ReviewJob, ReviewMode, WorkerJob } from '@code-reviewer/shared-types';
 import {
   getInstallationToken,
   getRepoTree,
@@ -9,6 +9,7 @@ import {
   getPrFiles,
   postPrReview,
   ReviewComment,
+  ReviewEvent,
 } from './github';
 import { ReviewWorkerConfig } from './config';
 import { detectLanguage, chunkFileWithTreeSitter } from './indexing';
@@ -34,7 +35,54 @@ function computeScore(findings: Array<{ severity: string }>): number {
   return Math.max(0, 100 - penalty);
 }
 
-function buildOverallBody(findings: Array<{ severity: string; title: string }>, score: number): string {
+function computeFindingFingerprint(f: { filePath?: string; severity: string; title: string }): string {
+  const raw = `${f.filePath || ''}:${f.severity}:${f.title}`;
+  let hash = 0;
+  for (let i = 0; i < raw.length; i++) {
+    hash = ((hash << 5) - hash + raw.charCodeAt(i)) | 0;
+  }
+  return `fp_${(hash >>> 0).toString(36)}`;
+}
+
+function determineReviewAction(
+  findings: Array<{ severity: string }>,
+  score: number,
+  reviewMode: ReviewMode
+): ReviewAction {
+  if (findings.length === 0) return 'APPROVE';
+
+  const hasBlocker = findings.some(f => f.severity === 'critical' || f.severity === 'high');
+
+  if (reviewMode === 'agent') {
+    if (score >= 80 && !hasBlocker) return 'APPROVE';
+    return 'REQUEST_CHANGES';
+  }
+
+  // Human PRs default to COMMENT (non-blocking)
+  return 'COMMENT';
+}
+
+type StructuredReviewData = {
+  version: string;
+  reviewRunId: string;
+  score: number;
+  action: ReviewAction;
+  findings: Array<{
+    severity: string;
+    title: string;
+    filePath?: string;
+    line?: number;
+    fingerprint: string;
+  }>;
+};
+
+function buildOverallBody(
+  findings: Array<{ severity: string; title: string; filePath?: string; line?: number; suggestion?: string }>,
+  score: number,
+  reviewRunId: string | undefined,
+  action: ReviewAction,
+  resolvedFindings?: ReviewFindingRecord[]
+): string {
   const counts: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0 };
   for (const f of findings) {
     counts[f.severity] = (counts[f.severity] ?? 0) + 1;
@@ -43,7 +91,38 @@ function buildOverallBody(findings: Array<{ severity: string; title: string }>, 
     .filter(([, n]) => n > 0)
     .map(([s, n]) => `${n} ${s}`)
     .join(', ');
-  return `## AI Code Review\n\n**Score:** ${score.toFixed(0)}/100 | **Findings:** ${parts || 'none'}\n\n*Automated review by CodeVetter*`;
+
+  let body = `## AI Code Review\n\n**Score:** ${score.toFixed(0)}/100 | **Findings:** ${parts || 'none'}`;
+
+  // Show resolved findings in re-review
+  if (resolvedFindings && resolvedFindings.length > 0) {
+    body += `\n\n### Resolved\n`;
+    for (const rf of resolvedFindings) {
+      body += `- ~~[${rf.severity.toUpperCase()}] ${rf.title}~~\n`;
+    }
+  }
+
+  body += `\n\n*Automated review by CodeVetter*`;
+
+  // Embed structured data for agents
+  if (reviewRunId) {
+    const structured: StructuredReviewData = {
+      version: '1.0',
+      reviewRunId,
+      score,
+      action,
+      findings: findings.map(f => ({
+        severity: f.severity,
+        title: f.title,
+        filePath: f.filePath,
+        line: f.line,
+        fingerprint: computeFindingFingerprint(f),
+      })),
+    };
+    body += `\n\n<!-- codevetter:begin\n${JSON.stringify(structured)}\ncodevetter:end -->`;
+  }
+
+  return body;
 }
 
 /** Supported file extensions for indexing */
@@ -241,7 +320,7 @@ async function handleReviewJob(job: ReviewJob, config: HandlerConfig): Promise<v
   const db =
     config.db ?? createControlPlaneDatabase({ cockroachDatabaseUrl: wc.cockroachDatabaseUrl });
 
-  // 1. Load repository
+  // 1. Load repository and PR metadata
   const repository = await db.getRepositoryById(repositoryId);
   if (!repository) {
     throw new Error(`Repository ${repositoryId} not found in DB`);
@@ -257,6 +336,17 @@ async function handleReviewJob(job: ReviewJob, config: HandlerConfig): Promise<v
     throw new Error(`Repository ${repository.fullName} has no installationId`);
   }
 
+  // Load review run to get agent mode and parent linking
+  const reviewRun = reviewRunId ? await db.getReviewRunById(reviewRunId) : undefined;
+  const reviewMode: ReviewMode = reviewRun?.reviewMode || 'standard';
+  const isAgent = reviewMode === 'agent';
+
+  // Load parent findings for re-review resolution
+  let parentFindings: ReviewFindingRecord[] = [];
+  if (reviewRun?.parentReviewRunId) {
+    parentFindings = await db.listReviewFindingsByRun(reviewRun.parentReviewRunId);
+  }
+
   // 2. Get installation token
   const installToken = await getInstallationToken(
     { appId: wc.githubAppId, privateKey: wc.githubAppPrivateKey, apiBaseUrl: wc.githubApiBaseUrl },
@@ -269,7 +359,7 @@ async function handleReviewJob(job: ReviewJob, config: HandlerConfig): Promise<v
     getPrFiles(installToken, owner, repoName, prNumber, wc.githubApiBaseUrl),
   ]);
 
-  // 4. Call AI gateway
+  // 4. Call AI gateway with agent context
   const gateway = new AIGatewayClient({
     baseUrl: `${wc.aiGatewayBaseUrl}/v1`,
     apiKey: wc.aiGatewayApiKey,
@@ -286,13 +376,29 @@ async function handleReviewJob(job: ReviewJob, config: HandlerConfig): Promise<v
     context: {
       repoFullName: repository.fullName,
       prNumber,
+      agent: isAgent ? { isAgentAuthored: true, agentName: reviewRun?.parentReviewRunId ? undefined : undefined } : undefined,
     },
   });
 
   const { findings } = reviewResult;
   const scoreComposite = computeScore(findings);
 
-  // 5. Write findings + update run
+  // Determine review action based on findings and mode
+  const reviewAction = determineReviewAction(findings, scoreComposite, reviewMode);
+
+  // 5. Resolve parent findings if this is a re-review
+  const resolvedFindings: ReviewFindingRecord[] = [];
+  if (parentFindings.length > 0) {
+    const newFingerprints = new Set(findings.map(f => computeFindingFingerprint(f)));
+    for (const pf of parentFindings) {
+      if (pf.findingFingerprint && !newFingerprints.has(pf.findingFingerprint)) {
+        await db.updateReviewFinding(pf.id, { status: 'resolved' });
+        resolvedFindings.push(pf);
+      }
+    }
+  }
+
+  // 6. Write findings + update run
   if (reviewRunId) {
     try {
       await Promise.all(
@@ -302,9 +408,12 @@ async function handleReviewJob(job: ReviewJob, config: HandlerConfig): Promise<v
             severity: finding.severity,
             title: finding.title,
             summary: finding.summary,
+            suggestion: finding.suggestion,
             filePath: finding.filePath,
             line: finding.line,
             confidence: finding.confidence,
+            status: 'open',
+            findingFingerprint: computeFindingFingerprint(finding),
           })
         )
       );
@@ -313,6 +422,7 @@ async function handleReviewJob(job: ReviewJob, config: HandlerConfig): Promise<v
         scoreComposite,
         findingsCount: findings.length,
         completedAt: nowIso(),
+        reviewAction,
       });
     } catch (err) {
       await db.updateReviewRun(reviewRunId, {
@@ -324,16 +434,29 @@ async function handleReviewJob(job: ReviewJob, config: HandlerConfig): Promise<v
     }
   }
 
-  // 6. Post PR review comments (only anchored findings)
+  // 7. Post PR review comments (only anchored findings)
   const anchoredComments: ReviewComment[] = findings
     .filter(f => f.filePath && typeof f.line === 'number')
-    .map(f => ({
-      path: f.filePath as string,
-      line: f.line as number,
-      body: `**[${f.severity.toUpperCase()}]** ${f.title}\n\n${f.summary}`,
-    }));
+    .map(f => {
+      let body = `**[${f.severity.toUpperCase()}]** ${f.title}\n\n${f.summary}`;
+      if (f.suggestion) {
+        body += `\n\n**Suggested fix:**\n\`\`\`suggestion\n${f.suggestion}\n\`\`\``;
+      }
+      return {
+        path: f.filePath as string,
+        line: f.line as number,
+        body,
+      };
+    });
 
-  const overallBody = buildOverallBody(findings, scoreComposite);
+  const overallBody = buildOverallBody(
+    findings,
+    scoreComposite,
+    reviewRunId,
+    reviewAction,
+    resolvedFindings.length > 0 ? resolvedFindings : undefined
+  );
+  const ghEvent: ReviewEvent = reviewAction;
   try {
     await postPrReview(
       installToken,
@@ -343,12 +466,12 @@ async function handleReviewJob(job: ReviewJob, config: HandlerConfig): Promise<v
       headSha,
       anchoredComments,
       overallBody,
-      wc.githubApiBaseUrl
+      wc.githubApiBaseUrl,
+      ghEvent
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.warn(`[worker-review] postPrReview failed pr=${prNumber}: ${msg}`);
-    // Update errorMessage but keep status=completed (DB findings are written)
     if (reviewRunId) {
       await db.updateReviewRun(reviewRunId, { errorMessage: `GitHub comment post failed: ${msg}` });
     }
@@ -356,7 +479,7 @@ async function handleReviewJob(job: ReviewJob, config: HandlerConfig): Promise<v
 
   console.log(
     `[worker-review] review completed repository=${repository.fullName} pr=${prNumber} ` +
-      `findings=${findings.length} score=${scoreComposite.toFixed(2)}`
+      `findings=${findings.length} score=${scoreComposite.toFixed(2)} action=${reviewAction} mode=${reviewMode}`
   );
 }
 

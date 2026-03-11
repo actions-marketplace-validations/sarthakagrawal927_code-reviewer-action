@@ -16,6 +16,11 @@ export type GatewayReviewFile = {
   changes?: number;
 };
 
+export type AgentContext = {
+  isAgentAuthored: boolean;
+  agentName?: string;
+};
+
 export type GatewayReviewRequest = {
   diff: string;
   files: GatewayReviewFile[];
@@ -23,6 +28,7 @@ export type GatewayReviewRequest = {
     repoFullName?: string;
     prNumber?: number;
     reviewTone?: string;
+    agent?: AgentContext;
   };
 };
 

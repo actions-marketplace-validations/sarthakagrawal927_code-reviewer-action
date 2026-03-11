@@ -7,7 +7,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'CodeVetter',
-  description: 'AI-powered code review dashboard.',
+  description: 'The quality gate for AI-generated code. Auto-detect and review PRs from Claude Code, Cursor, Devin, and other AI agents.',
   icons: {
     icon: '/favicon.ico',
     apple: '/apple-touch-icon.png'

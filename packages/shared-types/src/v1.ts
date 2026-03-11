@@ -167,6 +167,8 @@ export type PullRequestRecord = {
   headRef?: string;
   headSha?: string;
   state: PullRequestState;
+  isAgentAuthored: boolean;
+  agentName?: string;
   mergedAt?: string;
   closedAt?: string;
   createdAt: string;
@@ -174,6 +176,10 @@ export type PullRequestRecord = {
 };
 
 export type ReviewRunStatus = 'queued' | 'running' | 'completed' | 'failed';
+
+export type ReviewMode = 'standard' | 'agent';
+
+export type ReviewAction = 'COMMENT' | 'APPROVE' | 'REQUEST_CHANGES';
 
 export type ReviewRunRecord = {
   id: string;
@@ -183,6 +189,9 @@ export type ReviewRunRecord = {
   headSha: string;
   triggerSource?: 'webhook' | 'manual' | 'scheduled' | 'action';
   status: ReviewRunStatus;
+  reviewMode: ReviewMode;
+  reviewAction: ReviewAction;
+  parentReviewRunId?: string;
   scoreVersion?: string;
   scoreComposite?: number;
   findingsCount?: number;
@@ -191,15 +200,20 @@ export type ReviewRunRecord = {
   errorMessage?: string;
 };
 
+export type ReviewFindingStatus = 'open' | 'resolved';
+
 export type ReviewFindingRecord = {
   id: string;
   reviewRunId: string;
   severity: PolicySeverity;
   title: string;
   summary: string;
+  suggestion?: string;
   filePath?: string;
   line?: number;
   confidence?: number;
+  status: ReviewFindingStatus;
+  findingFingerprint?: string;
   createdAt: string;
 };
 

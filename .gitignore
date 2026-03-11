@@ -10,3 +10,6 @@ workers/*/dist
 workers/*/dist-cjs
 workers/*/.wrangler
 .vercel
+
+# Local Cloudflare Worker secrets
+.dev.vars

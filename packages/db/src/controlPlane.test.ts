@@ -249,6 +249,7 @@ describe('InMemoryControlPlaneDatabase', () => {
         filePath: 'src/db.ts',
         line: 42,
         confidence: 0.95,
+        status: 'open',
       });
 
       assert.ok(finding.id.startsWith('rf_'));

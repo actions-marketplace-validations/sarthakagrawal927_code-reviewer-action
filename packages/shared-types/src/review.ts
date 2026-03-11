@@ -6,6 +6,7 @@ export type ReviewFinding = {
   severity: ReviewSeverity;
   title: string;
   summary: string;
+  suggestion?: string;
   filePath?: string;
   line?: number;
   confidence?: number;

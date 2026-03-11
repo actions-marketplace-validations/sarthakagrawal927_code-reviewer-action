@@ -316,6 +316,8 @@ function mapPullRequest(row: Row): PullRequestRecord {
     headRef: toOptionalString(row.head_ref),
     headSha: toOptionalString(row.head_sha),
     state: row.state as PullRequestRecord['state'],
+    isAgentAuthored: toBoolean(row.is_agent_authored),
+    agentName: toOptionalString(row.agent_name),
     mergedAt: toOptionalIso(row.merged_at),
     closedAt: toOptionalIso(row.closed_at),
     createdAt: toIso(row.created_at),
@@ -332,6 +334,9 @@ function mapReviewRun(row: Row): ReviewRunRecord {
     headSha: String(row.head_sha || ''),
     triggerSource: row.trigger_source as ReviewRunRecord['triggerSource'],
     status: row.status as ReviewRunRecord['status'],
+    reviewMode: (row.review_mode as ReviewRunRecord['reviewMode']) || 'standard',
+    reviewAction: (row.review_action as ReviewRunRecord['reviewAction']) || 'COMMENT',
+    parentReviewRunId: toOptionalString(row.parent_review_run_id),
     scoreVersion: toOptionalString(row.score_version),
     scoreComposite: toOptionalNumber(row.score_composite),
     findingsCount: toOptionalNumber(row.findings_count),
@@ -348,9 +353,12 @@ function mapReviewFinding(row: Row): ReviewFindingRecord {
     severity: row.severity as ReviewFindingRecord['severity'],
     title: String(row.title),
     summary: String(row.summary),
+    suggestion: toOptionalString(row.suggestion),
     filePath: toOptionalString(row.file_path),
     line: toOptionalNumber(row.line),
     confidence: toOptionalNumber(row.confidence),
+    status: (row.status as ReviewFindingRecord['status']) || 'open',
+    findingFingerprint: toOptionalString(row.finding_fingerprint),
     createdAt: toIso(row.created_at)
   };
 }
@@ -958,8 +966,9 @@ export class CockroachControlPlaneDatabase implements ControlPlaneDatabase {
     const row = await this.queryOne<Row>(
       `INSERT INTO pull_requests (
         id, repository_id, github_pr_id, pr_number, title, author_github_login,
-        base_ref, head_ref, head_sha, state, merged_at, closed_at, created_at, updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+        base_ref, head_ref, head_sha, state, is_agent_authored, agent_name,
+        merged_at, closed_at, created_at, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
       ON CONFLICT (repository_id, pr_number)
       DO UPDATE SET
         github_pr_id = EXCLUDED.github_pr_id,
@@ -969,6 +978,8 @@ export class CockroachControlPlaneDatabase implements ControlPlaneDatabase {
         head_ref = EXCLUDED.head_ref,
         head_sha = EXCLUDED.head_sha,
         state = EXCLUDED.state,
+        is_agent_authored = CASE WHEN EXCLUDED.is_agent_authored THEN TRUE ELSE pull_requests.is_agent_authored END,
+        agent_name = COALESCE(EXCLUDED.agent_name, pull_requests.agent_name),
         merged_at = EXCLUDED.merged_at,
         closed_at = EXCLUDED.closed_at,
         updated_at = EXCLUDED.updated_at
@@ -984,6 +995,8 @@ export class CockroachControlPlaneDatabase implements ControlPlaneDatabase {
         input.headRef || null,
         input.headSha || null,
         input.state,
+        input.isAgentAuthored ?? false,
+        input.agentName || null,
         input.mergedAt || null,
         input.closedAt || null,
         timestamp,
@@ -1015,8 +1028,9 @@ export class CockroachControlPlaneDatabase implements ControlPlaneDatabase {
     const row = await this.queryOne<Row>(
       `INSERT INTO review_runs (
         id, repository_id, pull_request_id, pr_number, trigger_source, status,
-        head_sha, score_version, score_composite, findings_count, started_at, completed_at, error_message
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        head_sha, score_version, review_mode, review_action, parent_review_run_id,
+        score_composite, findings_count, started_at, completed_at, error_message
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
       RETURNING *`,
       [
         id('rr'),
@@ -1027,6 +1041,9 @@ export class CockroachControlPlaneDatabase implements ControlPlaneDatabase {
         input.status,
         input.headSha,
         input.scoreVersion || 'v1.0.0',
+        input.reviewMode || 'standard',
+        input.reviewAction || 'COMMENT',
+        input.parentReviewRunId || null,
         null,
         null,
         input.startedAt || nowIso(),
@@ -1055,7 +1072,8 @@ export class CockroachControlPlaneDatabase implements ControlPlaneDatabase {
            findings_count = COALESCE($4, findings_count),
            completed_at = COALESCE($5, completed_at),
            error_message = COALESCE($6, error_message),
-           score_version = COALESCE($7, score_version)
+           score_version = COALESCE($7, score_version),
+           review_action = COALESCE($8, review_action)
        WHERE id = $1
        RETURNING *`,
       [
@@ -1065,7 +1083,8 @@ export class CockroachControlPlaneDatabase implements ControlPlaneDatabase {
         patch.findingsCount ?? null,
         patch.completedAt || null,
         patch.errorMessage || null,
-        patch.scoreVersion || null
+        patch.scoreVersion || null,
+        patch.reviewAction || null
       ]
     );
 
@@ -1095,8 +1114,9 @@ export class CockroachControlPlaneDatabase implements ControlPlaneDatabase {
   ): Promise<ReviewFindingRecord> {
     const row = await this.queryOne<Row>(
       `INSERT INTO review_findings (
-        id, review_run_id, severity, title, summary, file_path, line, confidence, created_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        id, review_run_id, severity, title, summary, suggestion, file_path, line, confidence,
+        status, finding_fingerprint, created_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
       RETURNING *`,
       [
         id('rf'),
@@ -1104,9 +1124,12 @@ export class CockroachControlPlaneDatabase implements ControlPlaneDatabase {
         input.severity,
         input.title,
         input.summary,
+        input.suggestion || null,
         input.filePath || null,
         input.line ?? null,
         input.confidence ?? null,
+        input.status || 'open',
+        input.findingFingerprint || null,
         input.createdAt || nowIso()
       ]
     );
@@ -1125,6 +1148,26 @@ export class CockroachControlPlaneDatabase implements ControlPlaneDatabase {
     );
 
     return rows.map(mapReviewFinding);
+  }
+
+  async updateReviewFinding(
+    findingId: string,
+    patch: Partial<Pick<ReviewFindingRecord, 'status'>>
+  ): Promise<ReviewFindingRecord | undefined> {
+    const row = await this.queryOne<Row>(
+      `UPDATE review_findings SET status = COALESCE($2, status) WHERE id = $1 RETURNING *`,
+      [findingId, patch.status || null]
+    );
+    return row ? mapReviewFinding(row) : undefined;
+  }
+
+  async getLatestCompletedReviewRun(pullRequestId: string): Promise<ReviewRunRecord | undefined> {
+    const row = await this.queryOne<Row>(
+      `SELECT * FROM review_runs WHERE pull_request_id = $1 AND status = 'completed'
+       ORDER BY started_at DESC NULLS LAST LIMIT 1`,
+      [pullRequestId]
+    );
+    return row ? mapReviewRun(row) : undefined;
   }
 
   async createIndexingRun(input: CreateIndexingRunInput): Promise<IndexingJobRecord> {

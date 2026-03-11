@@ -198,6 +198,8 @@ export async function getFileContent(
   return result.content;
 }
 
+export type ReviewEvent = 'COMMENT' | 'APPROVE' | 'REQUEST_CHANGES';
+
 export async function postPrReview(
   token: string,
   owner: string,
@@ -206,7 +208,8 @@ export async function postPrReview(
   headSha: string,
   comments: ReviewComment[],
   overallBody: string,
-  baseUrl?: string
+  baseUrl?: string,
+  event: ReviewEvent = 'COMMENT'
 ): Promise<void> {
   await githubFetch<unknown>(
     `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${prNumber}/reviews`,
@@ -217,7 +220,7 @@ export async function postPrReview(
       body: {
         commit_id: headSha,
         body: overallBody,
-        event: 'COMMENT',
+        event,
         comments: comments.map(c => ({
           path: c.path,
           line: c.line,
@@ -226,5 +229,20 @@ export async function postPrReview(
         })),
       },
     }
+  );
+}
+
+export async function postPrComment(
+  token: string,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  body: string,
+  baseUrl?: string
+): Promise<void> {
+  await githubFetch<unknown>(
+    `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${prNumber}/comments`,
+    token,
+    { method: 'POST', baseUrl, body: { body } }
   );
 }
