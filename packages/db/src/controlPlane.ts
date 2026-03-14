@@ -2,12 +2,15 @@ import {
   AuditLogRecord,
   GitHubInstallationRecord,
   GitHubWebhookEnvelope,
+  IndexedFileRecord,
   IndexingJobRecord,
   PullRequestRecord,
   RepositoryConnection,
   RepositoryRuleOverride,
   ReviewFindingRecord,
   ReviewRunRecord,
+  SemanticChunkRecord,
+  SemanticIndexBatch,
   SessionRecord,
   UserRecord,
   WorkspaceInviteRecord,
@@ -244,6 +247,12 @@ export interface ControlPlaneDatabase {
 
   upsertWorkspaceSecret(input: UpsertWorkspaceSecretInput): Promise<WorkspaceSecretRecord>;
   getWorkspaceSecret(workspaceId: string, kind: WorkspaceSecretRecord['kind']): Promise<WorkspaceSecretRecord | undefined>;
+
+  saveIndexBatch(batch: SemanticIndexBatch): Promise<{ filesCreated: number; chunksCreated: number }>;
+  listIndexedFiles(repositoryId: string, sourceRef?: string): Promise<IndexedFileRecord[]>;
+  listSemanticChunks(repositoryId: string, sourceRef: string): Promise<SemanticChunkRecord[]>;
+  deleteIndexedData(repositoryId: string, sourceRef?: string): Promise<{ filesDeleted: number; chunksDeleted: number }>;
+  getIndexingStats(repositoryId: string): Promise<{ totalFiles: number; totalChunks: number; languages: Record<string, number>; lastIndexedAt?: string }>;
 }
 
 export class InMemoryControlPlaneDatabase implements ControlPlaneDatabase {
@@ -263,6 +272,8 @@ export class InMemoryControlPlaneDatabase implements ControlPlaneDatabase {
   private webhookEvents = new Map<string, GitHubWebhookEnvelope>();
   private auditLogs: AuditLogRecord[] = [];
   private workspaceSecrets = new Map<string, WorkspaceSecretRecord>();
+  private indexedFiles = new Map<string, IndexedFileRecord>();
+  private semanticChunks = new Map<string, SemanticChunkRecord>();
 
   async upsertUserFromGithub(input: UpsertGithubUserInput): Promise<UserRecord> {
     const existing = Array.from(this.users.values()).find(user => user.githubUserId === input.githubUserId);
@@ -874,5 +885,85 @@ export class InMemoryControlPlaneDatabase implements ControlPlaneDatabase {
       item => item.workspaceId === workspaceId && item.kind === kind
     );
     return secret ? clone(secret) : undefined;
+  }
+
+  async saveIndexBatch(batch: SemanticIndexBatch): Promise<{ filesCreated: number; chunksCreated: number }> {
+    let filesCreated = 0;
+    let chunksCreated = 0;
+
+    for (const file of batch.files) {
+      const key = `${file.repositoryId}:${file.sourceRef}:${file.path}`;
+      const existing = Array.from(this.indexedFiles.values()).find(
+        f => f.repositoryId === file.repositoryId && f.sourceRef === file.sourceRef && f.path === file.path
+      );
+      if (existing) {
+        this.indexedFiles.delete(existing.id);
+      }
+      this.indexedFiles.set(file.id, clone(file));
+      filesCreated++;
+    }
+
+    for (const chunk of batch.chunks) {
+      this.semanticChunks.set(chunk.id, clone(chunk));
+      chunksCreated++;
+    }
+
+    return { filesCreated, chunksCreated };
+  }
+
+  async listIndexedFiles(repositoryId: string, sourceRef?: string): Promise<IndexedFileRecord[]> {
+    const files = Array.from(this.indexedFiles.values()).filter(f => {
+      if (f.repositoryId !== repositoryId) return false;
+      if (sourceRef && f.sourceRef !== sourceRef) return false;
+      return true;
+    });
+    return clone(files);
+  }
+
+  async listSemanticChunks(repositoryId: string, sourceRef: string): Promise<SemanticChunkRecord[]> {
+    const chunks = Array.from(this.semanticChunks.values()).filter(
+      c => c.repositoryId === repositoryId && c.sourceRef === sourceRef
+    );
+    return clone(chunks.sort((a, b) => a.chunkOrdinal - b.chunkOrdinal));
+  }
+
+  async deleteIndexedData(repositoryId: string, sourceRef?: string): Promise<{ filesDeleted: number; chunksDeleted: number }> {
+    let filesDeleted = 0;
+    let chunksDeleted = 0;
+
+    for (const [fid, file] of this.indexedFiles) {
+      if (file.repositoryId === repositoryId && (!sourceRef || file.sourceRef === sourceRef)) {
+        this.indexedFiles.delete(fid);
+        filesDeleted++;
+      }
+    }
+
+    for (const [cid, chunk] of this.semanticChunks) {
+      if (chunk.repositoryId === repositoryId && (!sourceRef || chunk.sourceRef === sourceRef)) {
+        this.semanticChunks.delete(cid);
+        chunksDeleted++;
+      }
+    }
+
+    return { filesDeleted, chunksDeleted };
+  }
+
+  async getIndexingStats(repositoryId: string): Promise<{ totalFiles: number; totalChunks: number; languages: Record<string, number>; lastIndexedAt?: string }> {
+    const files = Array.from(this.indexedFiles.values()).filter(f => f.repositoryId === repositoryId);
+    const chunks = Array.from(this.semanticChunks.values()).filter(c => c.repositoryId === repositoryId);
+
+    const languages: Record<string, number> = {};
+    for (const file of files) {
+      languages[file.language] = (languages[file.language] || 0) + 1;
+    }
+
+    let lastIndexedAt: string | undefined;
+    for (const file of files) {
+      if (!lastIndexedAt || file.indexedAt > lastIndexedAt) {
+        lastIndexedAt = file.indexedAt;
+      }
+    }
+
+    return { totalFiles: files.length, totalChunks: chunks.length, languages, lastIndexedAt };
   }
 }

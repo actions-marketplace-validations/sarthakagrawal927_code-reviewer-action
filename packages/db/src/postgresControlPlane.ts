@@ -2,12 +2,15 @@ import {
   AuditLogRecord,
   GitHubInstallationRecord,
   GitHubWebhookEnvelope,
+  IndexedFileRecord,
   IndexingJobRecord,
   PullRequestRecord,
   RepositoryConnection,
   RepositoryRuleOverride,
   ReviewFindingRecord,
   ReviewRunRecord,
+  SemanticChunkRecord,
+  SemanticIndexBatch,
   SessionRecord,
   UserRecord,
   WorkspaceInviteRecord,
@@ -404,6 +407,40 @@ function mapAuditLog(row: Row): AuditLogRecord {
   };
 }
 
+function mapIndexedFile(row: Row): IndexedFileRecord {
+  return {
+    id: row.id as string,
+    repositoryId: row.repository_id as string,
+    sourceRef: row.source_ref as string,
+    path: row.path as string,
+    blobSha: row.blob_sha as string,
+    contentSha256: row.content_sha256 as string,
+    language: row.language as IndexedFileRecord['language'],
+    sizeBytes: row.size_bytes as number,
+    indexedAt: (row.indexed_at as Date).toISOString(),
+    chunkStrategy: row.chunk_strategy as IndexedFileRecord['chunkStrategy']
+  };
+}
+
+function mapSemanticChunk(row: Row): SemanticChunkRecord {
+  return {
+    id: row.id as string,
+    repositoryId: row.repository_id as string,
+    sourceRef: row.source_ref as string,
+    filePath: row.file_path as string,
+    fileContentSha256: row.file_content_sha256 as string,
+    language: row.language as SemanticChunkRecord['language'],
+    symbolKind: row.symbol_kind as SemanticChunkRecord['symbolKind'],
+    symbolName: (row.symbol_name as string) || undefined,
+    chunkOrdinal: row.chunk_ordinal as number,
+    startLine: row.start_line as number,
+    endLine: row.end_line as number,
+    content: row.content as string,
+    contentSha256: row.content_sha256 as string,
+    createdAt: (row.created_at as Date).toISOString()
+  };
+}
+
 function mapWorkspaceSecret(row: Row): WorkspaceSecretRecord {
   return {
     id: String(row.id),
@@ -440,6 +477,11 @@ export class CockroachControlPlaneDatabase implements ControlPlaneDatabase {
   private async query<T extends QueryResultRow = QueryResultRow>(text: string, values: unknown[] = []): Promise<T[]> {
     const result = await this.pool.query<T>(text, values);
     return result.rows;
+  }
+
+  private async execute(text: string, values: unknown[] = []): Promise<{ rowCount: number }> {
+    const result = await this.pool.query(text, values);
+    return { rowCount: result.rowCount ?? 0 };
   }
 
   private async queryOne<T extends QueryResultRow = QueryResultRow>(
@@ -1365,6 +1407,93 @@ export class CockroachControlPlaneDatabase implements ControlPlaneDatabase {
     );
 
     return row ? mapWorkspaceSecret(row) : undefined;
+  }
+
+  async saveIndexBatch(batch: SemanticIndexBatch): Promise<{ filesCreated: number; chunksCreated: number }> {
+    let filesCreated = 0;
+    let chunksCreated = 0;
+
+    for (const file of batch.files) {
+      await this.execute(
+        `INSERT INTO indexed_files (id, repository_id, source_ref, path, blob_sha, content_sha256, language, size_bytes, chunk_strategy, indexed_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (repository_id, source_ref, path) DO UPDATE SET blob_sha = $5, content_sha256 = $6, size_bytes = $8, indexed_at = $10`,
+        [file.id, file.repositoryId, file.sourceRef, file.path, file.blobSha, file.contentSha256, file.language, file.sizeBytes, file.chunkStrategy, file.indexedAt]
+      );
+      filesCreated++;
+    }
+
+    // Delete old chunks for this repo+ref, then insert new ones
+    if (batch.chunks.length > 0) {
+      await this.execute(
+        `DELETE FROM semantic_chunks WHERE repository_id = $1 AND source_ref = $2`,
+        [batch.repositoryId, batch.sourceRef]
+      );
+
+      for (const chunk of batch.chunks) {
+        await this.execute(
+          `INSERT INTO semantic_chunks (id, repository_id, source_ref, file_path, file_content_sha256, language, symbol_kind, symbol_name, chunk_ordinal, start_line, end_line, content, content_sha256, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+          [chunk.id, chunk.repositoryId, chunk.sourceRef, chunk.filePath, chunk.fileContentSha256, chunk.language, chunk.symbolKind, chunk.symbolName || null, chunk.chunkOrdinal, chunk.startLine, chunk.endLine, chunk.content, chunk.contentSha256, chunk.createdAt]
+        );
+        chunksCreated++;
+      }
+    }
+
+    return { filesCreated, chunksCreated };
+  }
+
+  async listIndexedFiles(repositoryId: string, sourceRef?: string): Promise<IndexedFileRecord[]> {
+    const rows = sourceRef
+      ? await this.query<Row>(`SELECT * FROM indexed_files WHERE repository_id = $1 AND source_ref = $2 ORDER BY path`, [repositoryId, sourceRef])
+      : await this.query<Row>(`SELECT * FROM indexed_files WHERE repository_id = $1 ORDER BY path`, [repositoryId]);
+    return rows.map(mapIndexedFile);
+  }
+
+  async listSemanticChunks(repositoryId: string, sourceRef: string): Promise<SemanticChunkRecord[]> {
+    const rows = await this.query<Row>(
+      `SELECT * FROM semantic_chunks WHERE repository_id = $1 AND source_ref = $2 ORDER BY file_path, chunk_ordinal`,
+      [repositoryId, sourceRef]
+    );
+    return rows.map(mapSemanticChunk);
+  }
+
+  async deleteIndexedData(repositoryId: string, sourceRef?: string): Promise<{ filesDeleted: number; chunksDeleted: number }> {
+    let chunksDeleted = 0;
+    let filesDeleted = 0;
+
+    if (sourceRef) {
+      const chunkResult = await this.execute(`DELETE FROM semantic_chunks WHERE repository_id = $1 AND source_ref = $2`, [repositoryId, sourceRef]);
+      chunksDeleted = chunkResult?.rowCount ?? 0;
+      const fileResult = await this.execute(`DELETE FROM indexed_files WHERE repository_id = $1 AND source_ref = $2`, [repositoryId, sourceRef]);
+      filesDeleted = fileResult?.rowCount ?? 0;
+    } else {
+      const chunkResult = await this.execute(`DELETE FROM semantic_chunks WHERE repository_id = $1`, [repositoryId]);
+      chunksDeleted = chunkResult?.rowCount ?? 0;
+      const fileResult = await this.execute(`DELETE FROM indexed_files WHERE repository_id = $1`, [repositoryId]);
+      filesDeleted = fileResult?.rowCount ?? 0;
+    }
+
+    return { filesDeleted, chunksDeleted };
+  }
+
+  async getIndexingStats(repositoryId: string): Promise<{ totalFiles: number; totalChunks: number; languages: Record<string, number>; lastIndexedAt?: string }> {
+    const fileCountRow = await this.queryOne<Row>(`SELECT COUNT(*)::int AS cnt FROM indexed_files WHERE repository_id = $1`, [repositoryId]);
+    const chunkCountRow = await this.queryOne<Row>(`SELECT COUNT(*)::int AS cnt FROM semantic_chunks WHERE repository_id = $1`, [repositoryId]);
+    const langRows = await this.query<Row>(`SELECT language, COUNT(*)::int AS cnt FROM indexed_files WHERE repository_id = $1 GROUP BY language`, [repositoryId]);
+    const lastRow = await this.queryOne<Row>(`SELECT MAX(indexed_at) AS last_indexed FROM indexed_files WHERE repository_id = $1`, [repositoryId]);
+
+    const languages: Record<string, number> = {};
+    for (const row of langRows) {
+      languages[row.language as string] = row.cnt as number;
+    }
+
+    return {
+      totalFiles: (fileCountRow?.cnt as number) ?? 0,
+      totalChunks: (chunkCountRow?.cnt as number) ?? 0,
+      languages,
+      lastIndexedAt: lastRow?.last_indexed as string | undefined
+    };
   }
 }
 

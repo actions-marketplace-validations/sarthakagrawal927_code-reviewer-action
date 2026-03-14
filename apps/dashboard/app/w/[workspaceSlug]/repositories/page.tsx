@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { GitHubSyncForm } from '../../../../components/github-sync-form';
 import { RepositoryIndexingForm } from '../../../../components/repository-indexing-form';
@@ -49,11 +50,14 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default async function WorkspaceRepositoriesPage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ workspaceSlug: string }>;
+  searchParams: Promise<{ page?: string }>;
 }) {
   const { workspaceSlug } = await params;
+  const { page: pageParam } = await searchParams;
   const workspace = await getWorkspaceBySlug(workspaceSlug);
   if (!workspace) {
     notFound();
@@ -65,7 +69,11 @@ export default async function WorkspaceRepositoriesPage({
 
   const repos = repositoriesResponse.repositories;
   const PAGE_SIZE = 6;
-  const displayRepos = repos.slice(0, PAGE_SIZE);
+  const currentPage = Math.max(1, parseInt(pageParam || '1', 10) || 1);
+  const totalPages = Math.max(1, Math.ceil(repos.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * PAGE_SIZE;
+  const displayRepos = repos.slice(startIndex, startIndex + PAGE_SIZE);
 
   return (
     <>
@@ -160,16 +168,31 @@ export default async function WorkspaceRepositoriesPage({
           {/* Pagination */}
           <div className="card">
             <div className="pagination-row">
-              <span>Showing 1–{displayRepos.length} of {repos.length} repositories</span>
+              <span>Showing {startIndex + 1}–{startIndex + displayRepos.length} of {repos.length} repositories</span>
               <div className="pagination-btns">
-                <button className="pagination-btn" disabled type="button">Previous</button>
-                <button
-                  className="pagination-btn"
-                  disabled={repos.length <= PAGE_SIZE}
-                  type="button"
-                >
-                  Next
-                </button>
+                {safePage > 1 ? (
+                  <Link
+                    className="pagination-btn"
+                    href={`/w/${workspaceSlug}/repositories?page=${safePage - 1}`}
+                  >
+                    Previous
+                  </Link>
+                ) : (
+                  <button className="pagination-btn" disabled type="button">Previous</button>
+                )}
+                <span style={{ fontSize: '13px', color: 'var(--text-muted)', padding: '0 8px', alignSelf: 'center' }}>
+                  Page {safePage} of {totalPages}
+                </span>
+                {safePage < totalPages ? (
+                  <Link
+                    className="pagination-btn"
+                    href={`/w/${workspaceSlug}/repositories?page=${safePage + 1}`}
+                  >
+                    Next
+                  </Link>
+                ) : (
+                  <button className="pagination-btn" disabled type="button">Next</button>
+                )}
               </div>
             </div>
           </div>

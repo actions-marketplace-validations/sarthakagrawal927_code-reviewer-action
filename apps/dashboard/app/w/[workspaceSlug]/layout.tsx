@@ -20,7 +20,7 @@ export default async function WorkspaceLayout({
       <div className="workspace-shell">
         <Sidebar workspaceSlug={workspace.slug} workspaceName={workspace.name} userLogin="dev-user" />
         <div className="workspace-main">
-          <Topbar workspaceSlug={workspace.slug} />
+          <Topbar workspaceSlug={workspace.slug} workspaceId={workspace.id} />
           <main className="page-content">{children}</main>
         </div>
       </div>
@@ -43,7 +43,7 @@ export default async function WorkspaceLayout({
     <div className="workspace-shell">
       <Sidebar workspaceSlug={workspace.slug} workspaceName={workspace.name} userLogin={userLogin} />
       <div className="workspace-main">
-        <Topbar workspaceSlug={workspace.slug} />
+        <Topbar workspaceSlug={workspace.slug} workspaceId={workspace.id} />
         <main className="page-content">{children}</main>
       </div>
     </div>

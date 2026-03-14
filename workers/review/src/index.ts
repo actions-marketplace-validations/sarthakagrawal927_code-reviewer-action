@@ -16,6 +16,21 @@ type Env = {
   INDEX_MAX_CHUNK_LINES?: string;
 };
 
+let secretsValidated = false;
+function validateSecrets(env: Env): void {
+  if (secretsValidated) return;
+  secretsValidated = true;
+  if (!env.COCKROACH_DATABASE_URL) {
+    console.warn('[config] COCKROACH_DATABASE_URL missing — reviews will be skipped');
+  }
+  if (!env.AI_GATEWAY_BASE_URL || !env.AI_GATEWAY_API_KEY) {
+    console.warn('[config] AI_GATEWAY_BASE_URL / AI_GATEWAY_API_KEY missing — reviews will be skipped');
+  }
+  if (!env.GITHUB_APP_ID || !env.GITHUB_APP_PRIVATE_KEY) {
+    console.warn('[config] GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY missing — cannot post PR comments');
+  }
+}
+
 function buildConfig(env: Env): ReviewWorkerConfig {
   return {
     pollIntervalMs: 2000,
@@ -39,6 +54,7 @@ function buildConfig(env: Env): ReviewWorkerConfig {
 }
 
 async function processJobs(env: Env): Promise<void> {
+  validateSecrets(env);
   const config = buildConfig(env);
 
   if (!config.cockroachDatabaseUrl) {

@@ -250,6 +250,8 @@ async function handleIndexingJob(job: IndexingJob, config: HandlerConfig): Promi
 
     let totalChunks = 0;
     const languageCounts: Record<string, number> = {};
+    const allFiles: import('@code-reviewer/shared-types').IndexedFileRecord[] = [];
+    const allChunks: import('@code-reviewer/shared-types').SemanticChunkRecord[] = [];
 
     for (const [filePath, { content, sha }] of fileContents) {
       const file: SourceFileForIndexing = {
@@ -262,12 +264,26 @@ async function handleIndexingJob(job: IndexingJob, config: HandlerConfig): Promi
 
       const { fileRecord, chunks } = await chunkFileWithTreeSitter(file, chunkConfig);
       totalChunks += chunks.length;
+      allFiles.push(fileRecord);
+      allChunks.push(...chunks);
 
       const lang = fileRecord.language;
       languageCounts[lang] = (languageCounts[lang] ?? 0) + 1;
     }
 
-    // 8. Update indexing run with summary
+    // 8. Persist indexed files and chunks
+    const batch: import('@code-reviewer/shared-types').SemanticIndexBatch = {
+      repositoryId,
+      sourceRef: ref,
+      strategy: 'tree-sitter',
+      files: allFiles,
+      chunks: allChunks,
+    };
+
+    const { filesCreated, chunksCreated } = await db.saveIndexBatch(batch);
+    console.log(`[worker-review] persisted ${filesCreated} files, ${chunksCreated} chunks`);
+
+    // 9. Update indexing run with summary
     const summary = {
       fileCount: fileContents.size,
       chunkCount: totalChunks,
@@ -341,6 +357,11 @@ async function handleReviewJob(job: ReviewJob, config: HandlerConfig): Promise<v
   const reviewMode: ReviewMode = reviewRun?.reviewMode || 'standard';
   const isAgent = reviewMode === 'agent';
 
+  // Load pull request record to get agent name
+  const pullRequest = reviewRun?.pullRequestId
+    ? await db.getPullRequestById(reviewRun.pullRequestId)
+    : undefined;
+
   // Load parent findings for re-review resolution
   let parentFindings: ReviewFindingRecord[] = [];
   if (reviewRun?.parentReviewRunId) {
@@ -376,7 +397,7 @@ async function handleReviewJob(job: ReviewJob, config: HandlerConfig): Promise<v
     context: {
       repoFullName: repository.fullName,
       prNumber,
-      agent: isAgent ? { isAgentAuthored: true, agentName: reviewRun?.parentReviewRunId ? undefined : undefined } : undefined,
+      agent: isAgent ? { isAgentAuthored: true, agentName: pullRequest?.agentName } : undefined,
     },
   });
 

@@ -55,6 +55,24 @@ let db: ControlPlaneDatabase = createControlPlaneDatabase({ useInMemory: true })
 let dbConfigFingerprint = '';
 const rateLimiterState = new Map<string, { count: number; resetAt: number }>();
 
+let secretsValidated = false;
+function validateSecrets(env: ApiWorkerBindings): void {
+  if (secretsValidated) return;
+  secretsValidated = true;
+  if (!env.COCKROACH_DATABASE_URL) {
+    console.warn('[config] COCKROACH_DATABASE_URL missing — falling back to in-memory DB');
+  }
+  if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET) {
+    console.warn('[config] GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET missing — OAuth will not work');
+  }
+  if (!env.GITHUB_WEBHOOK_SECRET) {
+    console.warn('[config] GITHUB_WEBHOOK_SECRET missing — webhook signature validation disabled');
+  }
+  if (!env.SESSION_SECRET) {
+    console.warn('[config] SESSION_SECRET missing — sessions will use insecure default');
+  }
+}
+
 type ApiContext = Context<{ Bindings: ApiWorkerBindings; Variables: ApiWorkerVariables }>;
 
 const DEFAULT_SESSION_COOKIE_NAME = 'cr_session';
@@ -757,6 +775,7 @@ function actionCanTriggerReview(action: string): boolean {
 
 app.use('*', async (c, next) => {
   resolveControlPlaneDb(c.env);
+  validateSecrets(c.env);
 
   const requestId = crypto.randomUUID();
   c.set('requestId', requestId);
@@ -1526,6 +1545,18 @@ app.post('/v1/workspaces/:workspaceId/repositories/:repositoryId/indexing/trigge
   });
 
   return jsonResponse({ run }, 202);
+});
+
+app.get('/v1/workspaces/:workspaceId/repositories/:repositoryId/indexing/stats', async c => {
+  const workspaceId = c.req.param('workspaceId');
+  const repositoryId = c.req.param('repositoryId');
+  const access = await requireWorkspaceMember(c, workspaceId, ['viewer']);
+  if (access instanceof Response) {
+    return access;
+  }
+
+  const stats = await db.getIndexingStats(repositoryId);
+  return jsonResponse({ stats });
 });
 
 app.get('/v1/workspaces/:workspaceId/rules/default', async c => {
