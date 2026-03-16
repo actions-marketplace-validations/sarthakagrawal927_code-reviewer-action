@@ -1,10 +1,10 @@
 import { createControlPlaneDatabase } from '@code-reviewer/db';
 import { handleJob } from './handlers';
-import { PostgresQueueAdapter } from './queue';
+import { D1QueueAdapter } from './queue';
 import { ReviewWorkerConfig } from './config';
 
 type Env = {
-  COCKROACH_DATABASE_URL?: string;
+  DB: D1Database;
   GITHUB_API_BASE_URL?: string;
   GITHUB_APP_ID?: string;
   GITHUB_APP_PRIVATE_KEY?: string;
@@ -20,9 +20,6 @@ let secretsValidated = false;
 function validateSecrets(env: Env): void {
   if (secretsValidated) return;
   secretsValidated = true;
-  if (!env.COCKROACH_DATABASE_URL) {
-    console.warn('[config] COCKROACH_DATABASE_URL missing — reviews will be skipped');
-  }
   if (!env.AI_GATEWAY_BASE_URL || !env.AI_GATEWAY_API_KEY) {
     console.warn('[config] AI_GATEWAY_BASE_URL / AI_GATEWAY_API_KEY missing — reviews will be skipped');
   }
@@ -43,7 +40,6 @@ function buildConfig(env: Env): ReviewWorkerConfig {
     indexMaxChunkLines: Number(env.INDEX_MAX_CHUNK_LINES?.trim() || '220'),
     reviewQueueName: 'review-jobs',
     indexingQueueName: 'indexing-jobs',
-    cockroachDatabaseUrl: env.COCKROACH_DATABASE_URL?.trim() || undefined,
     githubApiBaseUrl: env.GITHUB_API_BASE_URL?.trim() || 'https://api.github.com',
     githubAppId: env.GITHUB_APP_ID?.trim() || undefined,
     githubAppPrivateKey: env.GITHUB_APP_PRIVATE_KEY?.trim().replace(/\\n/g, '\n') || undefined,
@@ -57,13 +53,8 @@ async function processJobs(env: Env): Promise<void> {
   validateSecrets(env);
   const config = buildConfig(env);
 
-  if (!config.cockroachDatabaseUrl) {
-    console.error('[review-worker] COCKROACH_DATABASE_URL not set — skipping');
-    return;
-  }
-
-  const queue = new PostgresQueueAdapter(config.cockroachDatabaseUrl);
-  const db = createControlPlaneDatabase({ cockroachDatabaseUrl: config.cockroachDatabaseUrl });
+  const queue = new D1QueueAdapter(env.DB);
+  const db = createControlPlaneDatabase({ d1: env.DB });
 
   try {
     const [indexingJobs, reviewJobs] = await Promise.all([
@@ -95,7 +86,7 @@ async function processJobs(env: Env): Promise<void> {
       }
     }
   } finally {
-    await queue.end();
+    queue.end();
   }
 }
 

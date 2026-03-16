@@ -1,6 +1,14 @@
-import { ControlPlaneDatabase, createControlPlaneDatabase } from '@code-reviewer/db';
+import { ControlPlaneDatabase } from '@code-reviewer/db';
 import { AIGatewayClient } from '@code-reviewer/ai-gateway-client';
-import { IndexingJob, ReviewAction, ReviewFindingRecord, ReviewJob, ReviewMode, WorkerJob } from '@code-reviewer/shared-types';
+import { IndexingJob, ReviewFindingRecord, ReviewJob, ReviewMode, WorkerJob } from '@code-reviewer/shared-types';
+import {
+  computeScore,
+  computeFindingFingerprint,
+  determineReviewAction,
+  buildOverallBody,
+  hasIndexableExtension,
+} from '@code-reviewer/review-core';
+import type { ReviewComment, ReviewEvent } from '@code-reviewer/review-core';
 import {
   getInstallationToken,
   getRepoTree,
@@ -8,11 +16,9 @@ import {
   getPrDiff,
   getPrFiles,
   postPrReview,
-  ReviewComment,
-  ReviewEvent,
 } from './github';
 import { ReviewWorkerConfig } from './config';
-import { detectLanguage, chunkFileWithTreeSitter } from './indexing';
+import { chunkFileWithTreeSitter } from './indexing';
 import type { SourceFileForIndexing } from './indexing';
 
 function nowIso(): string {
@@ -24,118 +30,8 @@ type HandlerConfig = {
   indexChunkStrategy: 'tree-sitter';
   indexMaxChunkLines: number;
   workerConfig: ReviewWorkerConfig;
-  db?: ControlPlaneDatabase;
+  db: ControlPlaneDatabase;
 };
-
-// Score: 100 minus weighted penalties per finding
-function computeScore(findings: Array<{ severity: string }>): number {
-  if (findings.length === 0) return 100;
-  const weights: Record<string, number> = { critical: 20, high: 10, medium: 5, low: 2 };
-  const penalty = findings.reduce((sum, f) => sum + (weights[f.severity] ?? 2), 0);
-  return Math.max(0, 100 - penalty);
-}
-
-function computeFindingFingerprint(f: { filePath?: string; severity: string; title: string }): string {
-  const raw = `${f.filePath || ''}:${f.severity}:${f.title}`;
-  let hash = 0;
-  for (let i = 0; i < raw.length; i++) {
-    hash = ((hash << 5) - hash + raw.charCodeAt(i)) | 0;
-  }
-  return `fp_${(hash >>> 0).toString(36)}`;
-}
-
-function determineReviewAction(
-  findings: Array<{ severity: string }>,
-  score: number,
-  reviewMode: ReviewMode
-): ReviewAction {
-  if (findings.length === 0) return 'APPROVE';
-
-  const hasBlocker = findings.some(f => f.severity === 'critical' || f.severity === 'high');
-
-  if (reviewMode === 'agent') {
-    if (score >= 80 && !hasBlocker) return 'APPROVE';
-    return 'REQUEST_CHANGES';
-  }
-
-  // Human PRs default to COMMENT (non-blocking)
-  return 'COMMENT';
-}
-
-type StructuredReviewData = {
-  version: string;
-  reviewRunId: string;
-  score: number;
-  action: ReviewAction;
-  findings: Array<{
-    severity: string;
-    title: string;
-    filePath?: string;
-    line?: number;
-    fingerprint: string;
-  }>;
-};
-
-function buildOverallBody(
-  findings: Array<{ severity: string; title: string; filePath?: string; line?: number; suggestion?: string }>,
-  score: number,
-  reviewRunId: string | undefined,
-  action: ReviewAction,
-  resolvedFindings?: ReviewFindingRecord[]
-): string {
-  const counts: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0 };
-  for (const f of findings) {
-    counts[f.severity] = (counts[f.severity] ?? 0) + 1;
-  }
-  const parts = Object.entries(counts)
-    .filter(([, n]) => n > 0)
-    .map(([s, n]) => `${n} ${s}`)
-    .join(', ');
-
-  let body = `## AI Code Review\n\n**Score:** ${score.toFixed(0)}/100 | **Findings:** ${parts || 'none'}`;
-
-  // Show resolved findings in re-review
-  if (resolvedFindings && resolvedFindings.length > 0) {
-    body += `\n\n### Resolved\n`;
-    for (const rf of resolvedFindings) {
-      body += `- ~~[${rf.severity.toUpperCase()}] ${rf.title}~~\n`;
-    }
-  }
-
-  body += `\n\n*Automated review by CodeVetter*`;
-
-  // Embed structured data for agents
-  if (reviewRunId) {
-    const structured: StructuredReviewData = {
-      version: '1.0',
-      reviewRunId,
-      score,
-      action,
-      findings: findings.map(f => ({
-        severity: f.severity,
-        title: f.title,
-        filePath: f.filePath,
-        line: f.line,
-        fingerprint: computeFindingFingerprint(f),
-      })),
-    };
-    body += `\n\n<!-- codevetter:begin\n${JSON.stringify(structured)}\ncodevetter:end -->`;
-  }
-
-  return body;
-}
-
-/** Supported file extensions for indexing */
-const INDEXABLE_EXTENSIONS = new Set([
-  '.ts', '.tsx', '.js', '.jsx', '.py', '.go', '.java', '.cs', '.rb', '.php',
-  '.rs', '.kt', '.swift', '.sql', '.yaml', '.yml', '.json', '.md',
-]);
-
-function hasIndexableExtension(path: string): boolean {
-  const dot = path.lastIndexOf('.');
-  if (dot === -1) return false;
-  return INDEXABLE_EXTENSIONS.has(path.slice(dot).toLowerCase());
-}
 
 /** Fetch file contents with bounded concurrency */
 async function fetchFilesContent(
@@ -177,18 +73,12 @@ async function handleIndexingJob(job: IndexingJob, config: HandlerConfig): Promi
       `ref=${sourceRef || 'default'} runId=${indexingRunId || 'none'}`
   );
 
-  if (!wc.cockroachDatabaseUrl) {
-    console.warn('[worker-review] COCKROACH_DATABASE_URL not set — skipping indexing');
-    return;
-  }
   if (!wc.githubAppId || !wc.githubAppPrivateKey) {
     console.warn('[worker-review] GitHub App credentials not set — skipping indexing');
     return;
   }
 
-  const db =
-    config.db ??
-    createControlPlaneDatabase({ cockroachDatabaseUrl: wc.cockroachDatabaseUrl });
+  const db = config.db;
 
   // Mark as running
   if (indexingRunId) {
@@ -320,10 +210,6 @@ async function handleReviewJob(job: ReviewJob, config: HandlerConfig): Promise<v
   const { reviewRunId, repositoryId, prNumber, headSha } = job.payload;
   const wc = config.workerConfig;
 
-  if (!wc.cockroachDatabaseUrl) {
-    console.warn('[worker-review] COCKROACH_DATABASE_URL not set — skipping DB write');
-    return;
-  }
   if (!wc.githubAppId || !wc.githubAppPrivateKey) {
     console.warn('[worker-review] GitHub App credentials not set — skipping review');
     return;
@@ -333,8 +219,7 @@ async function handleReviewJob(job: ReviewJob, config: HandlerConfig): Promise<v
     return;
   }
 
-  const db =
-    config.db ?? createControlPlaneDatabase({ cockroachDatabaseUrl: wc.cockroachDatabaseUrl });
+  const db = config.db;
 
   // 1. Load repository and PR metadata
   const repository = await db.getRepositoryById(repositoryId);

@@ -25,9 +25,7 @@ import { Context, Hono } from 'hono';
 import { detectAgent } from './agentDetection';
 
 type ApiWorkerBindings = {
-  COCKROACH_DATABASE_URL?: string;
-  DB_USE_IN_MEMORY?: string;
-  DB_MAX_CONNECTIONS?: string;
+  DB: D1Database;
   API_WORKER_CORS_ORIGIN?: string;
   APP_BASE_URL?: string;
   SESSION_COOKIE_NAME?: string;
@@ -59,9 +57,6 @@ let secretsValidated = false;
 function validateSecrets(env: ApiWorkerBindings): void {
   if (secretsValidated) return;
   secretsValidated = true;
-  if (!env.COCKROACH_DATABASE_URL) {
-    console.warn('[config] COCKROACH_DATABASE_URL missing — falling back to in-memory DB');
-  }
   if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET) {
     console.warn('[config] GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET missing — OAuth will not work');
   }
@@ -165,40 +160,14 @@ function getRateLimitMaxRequests(env: ApiWorkerBindings): number {
   return parsed;
 }
 
-function shouldUseInMemoryDb(env: ApiWorkerBindings): boolean {
-  return env.DB_USE_IN_MEMORY?.trim().toLowerCase() === 'true';
-}
-
-function getDbMaxConnections(env: ApiWorkerBindings): number | undefined {
-  const raw = env.DB_MAX_CONNECTIONS?.trim();
-  if (!raw) {
-    return undefined;
-  }
-
-  const parsed = Number(raw);
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 100) {
-    return undefined;
-  }
-
-  return parsed;
-}
-
 function resolveControlPlaneDb(env: ApiWorkerBindings): ControlPlaneDatabase {
-  const useInMemory = shouldUseInMemoryDb(env);
-  const cockroachDatabaseUrl = env.COCKROACH_DATABASE_URL?.trim();
-  const maxConnections = getDbMaxConnections(env);
-  const fingerprint = `${useInMemory ? 'memory' : 'cockroach'}:${cockroachDatabaseUrl || ''}:${maxConnections || ''}`;
+  const fingerprint = env.DB ? 'd1' : 'memory';
 
   if (fingerprint === dbConfigFingerprint) {
     return db;
   }
 
-  db = createControlPlaneDatabase({
-    cockroachDatabaseUrl,
-    useInMemory,
-    applicationName: 'code-reviewer-api',
-    maxConnections
-  });
+  db = createControlPlaneDatabase({ d1: env.DB });
   dbConfigFingerprint = fingerprint;
 
   return db;
