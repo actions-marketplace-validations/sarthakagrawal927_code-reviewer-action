@@ -14,14 +14,12 @@ import {
   onSessionUpdated,
   isTauriAvailable,
   detectRunningAgents,
-  listSessionSubagents,
   deleteSession,
 } from "@/lib/tauri-ipc";
 import type {
   SessionRow,
   MessageRow,
   SearchResult,
-  SubagentSummary,
 } from "@/lib/tauri-ipc";
 
 // ─── Filter types ────────────────────────────────────────────────────────────
@@ -148,9 +146,6 @@ export default function Sessions() {
   const [showMenu, setShowMenu] = useState(false);
 
   // Subagent state — cached per session, fetched on demand
-  const [expandedSessionIds, setExpandedSessionIds] = useState<Set<string>>(new Set());
-  const [subagentCache, setSubagentCache] = useState<Record<string, SubagentSummary[]>>({});
-  const [subagentLoading, setSubagentLoading] = useState<Set<string>>(new Set());
 
   // Ref to prevent duplicate fetches
   const fetchingRef = useRef(false);
@@ -350,53 +345,7 @@ export default function Sessions() {
 
   // ─── Subagent expand/collapse ───────────────────────────────────────
 
-  const toggleSubagents = useCallback(
-    async (sessionId: string, cwd: string | null) => {
-      // If already expanded, just collapse
-      if (expandedSessionIds.has(sessionId)) {
-        setExpandedSessionIds((prev) => {
-          const next = new Set(prev);
-          next.delete(sessionId);
-          return next;
-        });
-        return;
-      }
-
-      // If we have cached data, just expand
-      if (subagentCache[sessionId]) {
-        setExpandedSessionIds((prev) => new Set(prev).add(sessionId));
-        return;
-      }
-
-      // Fetch subagents
-      if (!cwd || !isTauriAvailable()) return;
-
-      setSubagentLoading((prev) => new Set(prev).add(sessionId));
-      try {
-        const subagents = await listSessionSubagents(sessionId, cwd);
-        setSubagentCache((prev) => ({ ...prev, [sessionId]: subagents }));
-        if (subagents.length > 0) {
-          setExpandedSessionIds((prev) => new Set(prev).add(sessionId));
-        }
-      } catch (err) {
-        console.error("Failed to load subagents:", err);
-        setSubagentCache((prev) => ({ ...prev, [sessionId]: [] }));
-      } finally {
-        setSubagentLoading((prev) => {
-          const next = new Set(prev);
-          next.delete(sessionId);
-          return next;
-        });
-      }
-    },
-    [expandedSessionIds, subagentCache]
-  );
-
   // ─── Load session detail when selection changes ────────────────────────
-
-  // Ref to track subagent cache without triggering re-renders
-  const subagentCacheRef = useRef(subagentCache);
-  subagentCacheRef.current = subagentCache;
 
   useEffect(() => {
     if (!selectedId) {
@@ -416,19 +365,6 @@ export default function Sessions() {
         if (cancelled) return;
         setSelectedSession(result.session);
         setSelectedMessages(result.messages);
-
-        // Also pre-fetch subagents for the selected session if not cached
-        if (result.session.cwd && !subagentCacheRef.current[selectedId] && isTauriAvailable()) {
-          listSessionSubagents(selectedId, result.session.cwd)
-            .then((subagents) => {
-              if (!cancelled) {
-                setSubagentCache((prev) => ({ ...prev, [selectedId]: subagents }));
-              }
-            })
-            .catch(() => {
-              // Ignore — subagent fetch is best-effort
-            });
-        }
       } catch (err) {
         if (cancelled) return;
         const msg = err instanceof Error ? err.message : String(err);
@@ -805,65 +741,16 @@ export default function Sessions() {
           ) : (
             <div className="flex flex-col">
               {visibleSessions.map((session, i) => {
-                const hasSubagents = subagentCache[session.id]?.length > 0;
-                const isExpanded = expandedSessionIds.has(session.id);
-                const isLoadingSub = subagentLoading.has(session.id);
-                const subagents = subagentCache[session.id] ?? [];
-
                 return (
                   <div key={session.id}>
                     <div
                       data-session-index={i}
-                      className={`flex items-center border-b border-[#1e2231]/50 ${
+                      className={`group flex items-center border-b border-[#1e2231]/50 ${
                         mergeMode && selectedSessionIds.has(session.id)
                           ? "bg-amber-500/5"
                           : ""
                       }`}
                     >
-                      {/* Subagent expand chevron */}
-                      {!mergeMode && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleSubagents(session.id, session.cwd);
-                          }}
-                          className={`flex items-center justify-center w-5 shrink-0 ml-1 transition-opacity ${
-                            hasSubagents || isLoadingSub
-                              ? "opacity-100"
-                              : "opacity-0 pointer-events-none"
-                          }`}
-                        >
-                          {isLoadingSub ? (
-                            <svg
-                              className="h-2.5 w-2.5 animate-spin text-slate-600"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                            >
-                              <circle
-                                className="opacity-25"
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                              />
-                              <path
-                                className="opacity-75"
-                                fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                              />
-                            </svg>
-                          ) : (
-                            <span
-                              className={`text-[10px] text-slate-600 transition-transform duration-150 inline-block ${
-                                isExpanded ? "rotate-90" : ""
-                              }`}
-                            >
-                              &#9654;
-                            </span>
-                          )}
-                        </button>
-                      )}
                       {mergeMode && (
                         <label className="flex items-center justify-center pl-2 shrink-0 cursor-pointer">
                           <input

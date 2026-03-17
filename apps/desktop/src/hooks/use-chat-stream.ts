@@ -23,6 +23,40 @@ interface StreamStats {
   outputTokens: number;
 }
 
+/** Describes what Claude is currently doing */
+export interface ActivityStep {
+  label: string;
+  detail?: string;
+  timestamp: number;
+}
+
+function toolToActivityStep(toolName: string, input: Record<string, unknown>): ActivityStep {
+  const ts = Date.now();
+  switch (toolName) {
+    case "Read":
+      return { label: "Reading", detail: String(input.file_path ?? input.filePath ?? "").split("/").pop(), timestamp: ts };
+    case "Write":
+      return { label: "Writing", detail: String(input.file_path ?? input.filePath ?? "").split("/").pop(), timestamp: ts };
+    case "Edit":
+      return { label: "Editing", detail: String(input.file_path ?? input.filePath ?? "").split("/").pop(), timestamp: ts };
+    case "Bash":
+      return { label: "Running command", detail: String(input.command ?? "").slice(0, 40), timestamp: ts };
+    case "Grep":
+      return { label: "Searching", detail: String(input.pattern ?? "").slice(0, 30), timestamp: ts };
+    case "Glob":
+      return { label: "Finding files", detail: String(input.pattern ?? ""), timestamp: ts };
+    case "WebSearch":
+      return { label: "Searching web", detail: String(input.query ?? "").slice(0, 30), timestamp: ts };
+    case "WebFetch":
+      return { label: "Fetching", detail: String(input.url ?? "").slice(0, 40), timestamp: ts };
+    case "Agent":
+    case "Task":
+      return { label: "Spawning agent", detail: String(input.description ?? "").slice(0, 40), timestamp: ts };
+    default:
+      return { label: toolName, timestamp: ts };
+  }
+}
+
 /**
  * Hook that subscribes to `chat-stream` Tauri events and manages
  * streaming state. Returns `{ sending, streamingText, stats }`.
@@ -30,6 +64,7 @@ interface StreamStats {
 export function useChatStream(opts: UseChatStreamOptions) {
   const [sending, setSending] = useState(false);
   const [streamingText, setStreamingText] = useState("");
+  const [activityStep, setActivityStep] = useState<ActivityStep | null>(null);
   const [stats, setStats] = useState<StreamStats>({
     startedAt: null,
     elapsedMs: 0,
@@ -103,6 +138,19 @@ export function useChatStream(opts: UseChatStreamOptions) {
           }
           break;
         }
+        case "tool_use": {
+          // Claude is calling a tool — show what it's doing
+          const toolName = (content.name as string) ?? (content.tool_name as string) ?? "";
+          const toolInput = (content.input as Record<string, unknown>) ?? {};
+          if (toolName) {
+            setActivityStep(toolToActivityStep(toolName, toolInput));
+          }
+          break;
+        }
+        case "tool_result": {
+          // Tool finished — clear the step (next tool_use or text will replace it)
+          break;
+        }
         case "result": {
           const result = content.result as Record<string, unknown> | undefined;
           const usage = result?.usage as Record<string, number> | undefined;
@@ -117,6 +165,7 @@ export function useChatStream(opts: UseChatStreamOptions) {
         }
         case "done": {
           const sid = content.session_id as string | undefined;
+          setActivityStep(null);
           if (timerRef.current) {
             clearInterval(timerRef.current);
             timerRef.current = null;
@@ -163,5 +212,5 @@ export function useChatStream(opts: UseChatStreamOptions) {
     };
   }, []);
 
-  return { sending, streamingText, stats };
+  return { sending, streamingText, stats, activityStep };
 }

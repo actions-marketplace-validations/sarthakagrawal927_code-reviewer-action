@@ -119,7 +119,7 @@ function SystemBubble({ content }: { content: string }) {
   );
 }
 
-function PendingBubble({ state, text }: { state: "waiting" | "streaming"; text: string }) {
+function PendingBubble({ state, text, activityStep }: { state: "waiting" | "streaming"; text: string; activityStep?: { label: string; detail?: string } | null }) {
   return (
     <div className="mb-4">
       <div className="flex items-center gap-2 mb-1">
@@ -142,7 +142,9 @@ function PendingBubble({ state, text }: { state: "waiting" | "streaming"; text: 
               <span className="h-1.5 w-1.5 rounded-full bg-amber-400" style={{ animation: "pulse 1s ease-in-out infinite 400ms" }} />
             </div>
             <span className="text-[12px] text-slate-500">
-              {state === "waiting" ? "Connecting..." : "Thinking..."}
+              {activityStep
+                ? `${activityStep.label}${activityStep.detail ? ` ${activityStep.detail}` : ""}...`
+                : state === "waiting" ? "Connecting..." : "Thinking..."}
             </span>
           </div>
         )}
@@ -215,7 +217,7 @@ export default function Chat() {
 
   // ─── Stream handler ─────────────────────────────────────────────────────
 
-  const { sending, streamingText, stats } = useChatStream({
+  const { sending, streamingText, stats, activityStep } = useChatStream({
     onAssistantDone(text, newSessionId) {
       const targetTabId = streamingTabIdRef.current;
       if (!targetTabId) return;
@@ -724,7 +726,7 @@ export default function Chat() {
             )}
 
             {chatState !== "idle" && (
-              <PendingBubble state={chatState} text={streamingText} />
+              <PendingBubble state={chatState} text={streamingText} activityStep={activityStep} />
             )}
           </>
         )}
