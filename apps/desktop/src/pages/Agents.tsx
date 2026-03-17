@@ -1340,6 +1340,7 @@ export default function Agents() {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showTestGenModal, setShowTestGenModal] = useState(false);
   const [showPersonaPicker, setShowPersonaPicker] = useState(false);
+  const [pendingAssignTask, setPendingAssignTask] = useState<Task | null>(null);
   const [linearConnected, setLinearConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1905,7 +1906,8 @@ export default function Agents() {
               <KanbanBoard
                 tasks={tasks}
                 onAddTask={handleAddTask}
-                onAssignAgent={() => {
+                onAssignAgent={(task) => {
+                  setPendingAssignTask(task);
                   setShowPersonaPicker(true);
                 }}
               />
@@ -2010,7 +2012,9 @@ export default function Agents() {
             Choose an Agent
           </DialogTitle>
           <DialogDescription className="text-[12px] text-slate-500 mb-3">
-            Select a persona to assign this task to
+            {pendingAssignTask
+              ? `Assign "${pendingAssignTask.title}" to a persona`
+              : "Select a persona to assign this task to"}
           </DialogDescription>
           <div className="flex flex-col gap-1.5 max-h-[400px] overflow-y-auto">
             {personas
@@ -2022,8 +2026,23 @@ export default function Agents() {
                     key={persona.id}
                     onClick={() => {
                       setShowPersonaPicker(false);
-                      setSelectedAgentId(null);
-                      setSelectedPersona(persona);
+                      if (pendingAssignTask) {
+                        // Launch directly with task data
+                        const taskDesc = pendingAssignTask.title +
+                          (pendingAssignTask.description ? `\n\n${pendingAssignTask.description}` : "");
+                        const projectPath = pendingAssignTask.project_path || "";
+                        if (projectPath) {
+                          handleAssignPersona(persona, taskDesc, projectPath);
+                        } else {
+                          // No project path on task — fall back to persona detail
+                          setSelectedAgentId(null);
+                          setSelectedPersona(persona);
+                        }
+                        setPendingAssignTask(null);
+                      } else {
+                        setSelectedAgentId(null);
+                        setSelectedPersona(persona);
+                      }
                     }}
                     className="flex items-center gap-3 rounded-lg border border-[#1e2231] bg-[#13151c] p-3 text-left transition-colors hover:border-[#2d3348] hover:bg-[#1a1d27]"
                   >
