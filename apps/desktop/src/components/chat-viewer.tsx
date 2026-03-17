@@ -372,7 +372,11 @@ export default function ChatViewer({
     scrollToBottom();
     try {
       await sendChatMessage(msg, session.id, session.cwd ?? undefined);
+      // sendChatMessage returns immediately (streaming happens via events)
+      // If no stream events arrive within 30s, reset the waiting state
+      setTimeout(() => setWaitingForResponse(false), 30000);
     } catch (err) {
+      setWaitingForResponse(false);
       console.error("Failed to send message:", err);
       setLocalMessages((prev) => [
         ...prev,
@@ -384,7 +388,7 @@ export default function ChatViewer({
         },
       ]);
     }
-  }, [chatInput, chatSending, session, scrollToBottom]);
+  }, [chatInput, chatSending, waitingForResponse, session, scrollToBottom]);
 
   // Filter messages — memoized to avoid recomputing on every scroll
   const visibleMessages = useMemo(() => {
