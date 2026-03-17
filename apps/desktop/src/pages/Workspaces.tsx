@@ -1124,7 +1124,7 @@ function WorkspaceChat({
                       </div>
                       <span className="text-[12px] text-slate-500">
                         {chatState === "waiting"
-                          ? "Connecting to Claude..."
+                          ? "Connecting..."
                           : "Thinking..."}
                       </span>
                     </div>

@@ -142,7 +142,7 @@ function PendingBubble({ state, text }: { state: "waiting" | "streaming"; text: 
               <span className="h-1.5 w-1.5 rounded-full bg-amber-400" style={{ animation: "pulse 1s ease-in-out infinite 400ms" }} />
             </div>
             <span className="text-[12px] text-slate-500">
-              {state === "waiting" ? "Connecting to Claude..." : "Thinking..."}
+              {state === "waiting" ? "Connecting..." : "Thinking..."}
             </span>
           </div>
         )}

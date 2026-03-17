@@ -668,7 +668,7 @@ export default function ChatViewer({
                 <span className="h-1.5 w-1.5 rounded-full bg-amber-400" style={{ animation: "pulse 1s ease-in-out infinite 200ms" }} />
                 <span className="h-1.5 w-1.5 rounded-full bg-amber-400" style={{ animation: "pulse 1s ease-in-out infinite 400ms" }} />
               </div>
-              <span className="text-[12px] text-slate-500">Connecting to Claude...</span>
+              <span className="text-[12px] text-slate-500">Connecting...</span>
             </div>
           </div>
         </div>
