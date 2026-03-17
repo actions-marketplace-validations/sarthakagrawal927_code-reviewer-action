@@ -4,6 +4,7 @@ use crate::adapters::AgentAdapter;
 use crate::coordination::{self, doc, schema, DocCache};
 use crate::db::queries::{self, AgentProcessRow, ActivityInput};
 use crate::DbState;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use tauri::{Emitter, State};
@@ -404,4 +405,245 @@ pub async fn get_agent(
         "agent": agent,
         "total_cost_usd": total_cost,
     }))
+}
+
+// ─── Agent Personas ──────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentPersona {
+    pub id: String,
+    pub name: String,
+    pub department: String,
+    pub description: String,
+    pub color: String,
+    pub tools: Vec<String>,
+    pub system_prompt: String,
+}
+
+/// List all agent personas from `~/.claude/agents/`.
+///
+/// Each subdirectory is a department; each `.md` file within is a persona.
+/// The YAML frontmatter (between `---` markers) is parsed for name,
+/// description, color, and tools.  The body after frontmatter is the
+/// system prompt.
+#[tauri::command]
+pub async fn list_agent_personas() -> Result<Value, String> {
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_else(|_| ".".to_string());
+    let agents_dir = PathBuf::from(&home).join(".claude").join("agents");
+
+    if !agents_dir.exists() {
+        return Ok(json!({ "personas": [] }));
+    }
+
+    let mut personas: Vec<AgentPersona> = Vec::new();
+
+    let entries = std::fs::read_dir(&agents_dir).map_err(|e| e.to_string())?;
+    for entry in entries.flatten() {
+        let dept_path = entry.path();
+        if !dept_path.is_dir() {
+            continue;
+        }
+
+        let department = entry
+            .file_name()
+            .to_string_lossy()
+            .to_string();
+
+        let md_entries = match std::fs::read_dir(&dept_path) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+
+        for md_entry in md_entries.flatten() {
+            let file_path = md_entry.path();
+            if file_path.extension().map(|e| e != "md").unwrap_or(true) {
+                continue;
+            }
+
+            let id = file_path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+
+            let content = match std::fs::read_to_string(&file_path) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+
+            if let Some(persona) = parse_persona_md(&id, &department, &content) {
+                personas.push(persona);
+            }
+        }
+    }
+
+    // Sort by department then by name for consistent ordering.
+    personas.sort_by(|a, b| a.department.cmp(&b.department).then(a.name.cmp(&b.name)));
+
+    Ok(json!({ "personas": personas }))
+}
+
+/// Create a new agent persona file at `~/.claude/agents/<department>/<id>.md`.
+#[tauri::command]
+pub async fn create_agent_persona(
+    department: String,
+    id: String,
+    name: String,
+    description: String,
+    color: String,
+    tools: String,
+    system_prompt: String,
+) -> Result<Value, String> {
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_else(|_| ".".to_string());
+    let dept_dir = PathBuf::from(&home)
+        .join(".claude")
+        .join("agents")
+        .join(&department);
+
+    // Create department directory if it doesn't exist
+    std::fs::create_dir_all(&dept_dir).map_err(|e| format!("Failed to create directory: {e}"))?;
+
+    let file_path = dept_dir.join(format!("{}.md", id));
+    let content = format!(
+        "---\nname: {}\ndescription: {}\ncolor: {}\ntools: {}\n---\n\n{}",
+        name, description, color, tools, system_prompt
+    );
+
+    std::fs::write(&file_path, content)
+        .map_err(|e| format!("Failed to write persona file: {e}"))?;
+
+    Ok(json!({ "success": true }))
+}
+
+/// Update an existing agent persona file at `~/.claude/agents/<department>/<id>.md`.
+/// Only updates the provided fields; keeps existing values for None fields.
+#[tauri::command]
+pub async fn update_agent_persona(
+    department: String,
+    id: String,
+    name: Option<String>,
+    description: Option<String>,
+    color: Option<String>,
+    tools: Option<String>,
+    system_prompt: Option<String>,
+) -> Result<Value, String> {
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_else(|_| ".".to_string());
+    let file_path = PathBuf::from(&home)
+        .join(".claude")
+        .join("agents")
+        .join(&department)
+        .join(format!("{}.md", id));
+
+    let existing_content = std::fs::read_to_string(&file_path)
+        .map_err(|e| format!("Failed to read persona file: {e}"))?;
+
+    let existing = parse_persona_md(&id, &department, &existing_content)
+        .ok_or_else(|| "Failed to parse existing persona file".to_string())?;
+
+    let final_name = name.unwrap_or(existing.name);
+    let final_description = description.unwrap_or(existing.description);
+    let final_color = color.unwrap_or(existing.color);
+    let final_tools = tools.unwrap_or_else(|| existing.tools.join(", "));
+    let final_system_prompt = system_prompt.unwrap_or(existing.system_prompt);
+
+    let content = format!(
+        "---\nname: {}\ndescription: {}\ncolor: {}\ntools: {}\n---\n\n{}",
+        final_name, final_description, final_color, final_tools, final_system_prompt
+    );
+
+    std::fs::write(&file_path, content)
+        .map_err(|e| format!("Failed to write persona file: {e}"))?;
+
+    Ok(json!({ "success": true }))
+}
+
+/// Delete an agent persona file at `~/.claude/agents/<department>/<id>.md`.
+#[tauri::command]
+pub async fn delete_agent_persona(
+    department: String,
+    id: String,
+) -> Result<Value, String> {
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_else(|_| ".".to_string());
+    let file_path = PathBuf::from(&home)
+        .join(".claude")
+        .join("agents")
+        .join(&department)
+        .join(format!("{}.md", id));
+
+    std::fs::remove_file(&file_path)
+        .map_err(|e| format!("Failed to delete persona file: {e}"))?;
+
+    Ok(json!({ "success": true }))
+}
+
+/// Parse a persona `.md` file with YAML frontmatter.
+fn parse_persona_md(id: &str, department: &str, content: &str) -> Option<AgentPersona> {
+    let trimmed = content.trim();
+
+    // Must start with `---`
+    if !trimmed.starts_with("---") {
+        return None;
+    }
+
+    // Find the closing `---`
+    let after_first = &trimmed[3..];
+    let closing_pos = after_first.find("\n---")?;
+    let frontmatter = &after_first[..closing_pos];
+    let body = after_first[closing_pos + 4..].trim().to_string();
+
+    // Parse frontmatter fields manually (avoiding a full YAML dependency).
+    let mut name = String::new();
+    let mut description = String::new();
+    let mut color = String::new();
+    let mut tools: Vec<String> = Vec::new();
+
+    for line in frontmatter.lines() {
+        let line = line.trim();
+        if let Some(val) = line.strip_prefix("name:") {
+            name = val.trim().to_string();
+        } else if let Some(val) = line.strip_prefix("description:") {
+            description = val.trim().to_string();
+        } else if let Some(val) = line.strip_prefix("color:") {
+            color = val.trim().to_string();
+        } else if let Some(val) = line.strip_prefix("tools:") {
+            tools = val
+                .split(',')
+                .map(|t| t.trim().to_string())
+                .filter(|t| !t.is_empty())
+                .collect();
+        }
+    }
+
+    if name.is_empty() {
+        // Fallback: derive name from id
+        name = id
+            .split('-')
+            .map(|w| {
+                let mut c = w.chars();
+                match c.next() {
+                    None => String::new(),
+                    Some(f) => f.to_uppercase().to_string() + c.as_str(),
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+    }
+
+    Some(AgentPersona {
+        id: id.to_string(),
+        name,
+        department: department.to_string(),
+        description,
+        color,
+        tools,
+        system_prompt: body,
+    })
 }

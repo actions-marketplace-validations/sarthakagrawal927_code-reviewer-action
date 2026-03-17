@@ -26,8 +26,12 @@ import {
   startLocalReview,
   startPrReview,
   generatePlaywrightTest,
+  listAgentPersonas,
+  createAgentPersona,
+  updateAgentPersona,
+  deleteAgentPersona,
 } from "@/lib/tauri-ipc";
-import type { AgentProcess, Task, ActivityEvent, AgentPreset, LinearIssue, SessionRow, MessageRow, ReviewTone } from "@/lib/tauri-ipc";
+import type { AgentProcess, Task, ActivityEvent, AgentPreset, AgentPersona, LinearIssue, SessionRow, MessageRow, ReviewTone } from "@/lib/tauri-ipc";
 
 // ─── Create Task Modal ──────────────────────────────────────────────────────
 
@@ -858,6 +862,372 @@ function TestGenModal({
   );
 }
 
+// ─── Assign Task Modal (for persona) ─────────────────────────────────────────
+
+function AssignTaskModal({
+  persona,
+  onClose,
+  onAssign,
+}: {
+  persona: AgentPersona;
+  onClose: () => void;
+  onAssign: (task: string, projectPath: string) => void;
+}) {
+  const [task, setTask] = useState("");
+  const [projectPath, setProjectPath] = useState("");
+
+  const inputClass =
+    "rounded-lg border border-[#1e2231] bg-[#0f1117] px-3 py-2 text-sm text-slate-200 placeholder-slate-600 outline-none focus:border-amber-500/50";
+
+  return (
+    <div className="rounded-xl border border-[#1e2231] bg-[#13151c] p-5 fade-in">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-200">
+            Assign Task to {persona.name}
+          </h3>
+          <p className="text-[11px] text-slate-500 mt-0.5">{persona.department}</p>
+        </div>
+        <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-sm">
+          {"\u2715"}
+        </button>
+      </div>
+      <div className="flex flex-col gap-3">
+        <DirectoryPicker
+          value={projectPath}
+          onChange={setProjectPath}
+          label="Project Directory"
+        />
+        <textarea
+          value={task}
+          onChange={(e) => setTask(e.target.value)}
+          placeholder="Describe what this agent should work on..."
+          rows={4}
+          className={`resize-none ${inputClass}`}
+          autoFocus
+        />
+        <button
+          onClick={() => {
+            if (task.trim() && projectPath.trim()) onAssign(task, projectPath);
+          }}
+          disabled={!task.trim() || !projectPath.trim()}
+          className="self-start rounded-lg bg-amber-500 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-50"
+        >
+          Launch
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Persona Modal (Create / Edit) ──────────────────────────────────────────
+
+const PERSONA_COLORS = ["amber", "blue", "purple", "green", "red", "slate"] as const;
+const PERSONA_COLOR_HEX: Record<string, string> = {
+  amber: "#f59e0b",
+  blue: "#3b82f6",
+  purple: "#a855f7",
+  green: "#22c55e",
+  red: "#ef4444",
+  slate: "#64748b",
+};
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function PersonaModal({
+  existingPersona,
+  existingDepartments,
+  onClose,
+  onSaved,
+}: {
+  existingPersona?: AgentPersona;
+  existingDepartments: string[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isEdit = !!existingPersona;
+  const [department, setDepartment] = useState(existingPersona?.department ?? "");
+  const [name, setName] = useState(existingPersona?.name ?? "");
+  const [description, setDescription] = useState(existingPersona?.description ?? "");
+  const [color, setColor] = useState(existingPersona?.color ?? "amber");
+  const [tools, setTools] = useState(existingPersona?.tools.join(", ") ?? "");
+  const [systemPrompt, setSystemPrompt] = useState(existingPersona?.system_prompt ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const id = existingPersona?.id ?? slugify(name);
+
+  const inputClass =
+    "rounded-lg border border-[#1e2231] bg-[#0f1117] px-3 py-2 text-sm text-slate-200 placeholder-slate-600 outline-none focus:border-amber-500/50";
+
+  async function handleSave() {
+    if (!name.trim() || !department.trim()) return;
+    setSaving(true);
+    try {
+      if (isEdit && existingPersona) {
+        await updateAgentPersona(existingPersona.department, existingPersona.id, {
+          name,
+          description,
+          color,
+          tools,
+          systemPrompt,
+        });
+      } else {
+        await createAgentPersona(department, id, name, description, color, tools, systemPrompt);
+      }
+      onSaved();
+      onClose();
+    } catch (err) {
+      console.error("Failed to save persona:", err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-[#1e2231] bg-[#13151c] p-6 shadow-2xl">
+      <h2 className="text-base font-semibold text-slate-100 mb-4">
+        {isEdit ? "Edit Persona" : "Create Persona"}
+      </h2>
+      <div className="flex flex-col gap-3">
+        {/* Department */}
+        <div>
+          <label className="text-[11px] text-slate-500 mb-1 block">Department</label>
+          {isEdit ? (
+            <input
+              value={department}
+              disabled
+              className={inputClass + " opacity-50 cursor-not-allowed w-full"}
+            />
+          ) : (
+            <div className="flex gap-2">
+              <input
+                list="dept-suggestions"
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+                placeholder="e.g. engineering"
+                className={inputClass + " flex-1"}
+              />
+              <datalist id="dept-suggestions">
+                {existingDepartments.map((d) => (
+                  <option key={d} value={d} />
+                ))}
+              </datalist>
+            </div>
+          )}
+        </div>
+
+        {/* Name */}
+        <div>
+          <label className="text-[11px] text-slate-500 mb-1 block">Name</label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Backend Architect"
+            className={inputClass + " w-full"}
+          />
+          {!isEdit && name && (
+            <p className="text-[10px] text-slate-600 mt-1">ID: {slugify(name)}</p>
+          )}
+        </div>
+
+        {/* Description */}
+        <div>
+          <label className="text-[11px] text-slate-500 mb-1 block">Description</label>
+          <input
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="One-line description"
+            className={inputClass + " w-full"}
+          />
+        </div>
+
+        {/* Color */}
+        <div>
+          <label className="text-[11px] text-slate-500 mb-1 block">Color</label>
+          <div className="flex gap-2">
+            {PERSONA_COLORS.map((c) => (
+              <button
+                key={c}
+                onClick={() => setColor(c)}
+                className="h-6 w-6 rounded-full transition-all"
+                style={{
+                  backgroundColor: PERSONA_COLOR_HEX[c],
+                  boxShadow: color === c ? `0 0 0 2px #13151c, 0 0 0 4px ${PERSONA_COLOR_HEX[c]}` : "none",
+                }}
+                title={c}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Tools */}
+        <div>
+          <label className="text-[11px] text-slate-500 mb-1 block">Tools (comma-separated)</label>
+          <input
+            value={tools}
+            onChange={(e) => setTools(e.target.value)}
+            placeholder="e.g. Read, Edit, Bash"
+            className={inputClass + " w-full"}
+          />
+        </div>
+
+        {/* System Prompt */}
+        <div>
+          <label className="text-[11px] text-slate-500 mb-1 block">System Prompt</label>
+          <textarea
+            value={systemPrompt}
+            onChange={(e) => setSystemPrompt(e.target.value)}
+            placeholder="Instructions for this agent persona..."
+            className={inputClass + " w-full min-h-[200px] font-mono text-[12px] resize-y"}
+          />
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center justify-end gap-2 mt-2">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-[#1e2231] px-4 py-2 text-sm text-slate-400 hover:text-slate-200 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!name.trim() || !department.trim() || saving}
+            className="rounded-lg bg-amber-500 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-50"
+          >
+            {saving ? "Saving..." : isEdit ? "Save" : "Create"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Persona Card ────────────────────────────────────────────────────────────
+
+const COLOR_MAP: Record<string, string> = {
+  red: "#ef4444",
+  orange: "#f97316",
+  amber: "#f59e0b",
+  yellow: "#eab308",
+  lime: "#84cc16",
+  green: "#22c55e",
+  emerald: "#10b981",
+  teal: "#14b8a6",
+  cyan: "#06b6d4",
+  sky: "#0ea5e9",
+  blue: "#3b82f6",
+  indigo: "#6366f1",
+  violet: "#8b5cf6",
+  purple: "#a855f7",
+  fuchsia: "#d946ef",
+  pink: "#ec4899",
+  rose: "#f43f5e",
+};
+
+function PersonaCard({
+  persona,
+  busyAgent,
+  onAssign,
+  onViewAgent,
+  onEdit,
+  onDelete,
+}: {
+  persona: AgentPersona;
+  busyAgent: AgentProcess | null;
+  onAssign: () => void;
+  onViewAgent: (agentId: string) => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const [showTooltip, setShowTooltip] = useState(false);
+  const isBusy = busyAgent !== null && busyAgent.status === "running";
+  const accentColor = COLOR_MAP[persona.color] || "#f59e0b";
+
+  return (
+    <div
+      className="group relative rounded-xl border border-[#1e2231] bg-[#13151c] p-3 transition-colors hover:border-[#2d3348]"
+      style={{ borderLeftColor: accentColor, borderLeftWidth: 3 }}
+      onMouseEnter={() => setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
+    >
+      {/* Edit / Delete icons — visible on hover */}
+      <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={(e) => { e.stopPropagation(); onEdit(); }}
+          className="rounded p-0.5 text-slate-500 hover:text-slate-300 hover:bg-[#1e2231] transition-colors"
+          title="Edit persona"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+          </svg>
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="rounded p-0.5 text-slate-500 hover:text-red-400 hover:bg-[#1e2231] transition-colors"
+          title="Delete persona"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+      <div className="flex items-start justify-between">
+        <div className="min-w-0 flex-1">
+          <p className="text-[12px] font-medium text-slate-200 truncate">
+            {persona.name}
+          </p>
+          <div className="flex items-center gap-1.5 mt-1">
+            {isBusy ? (
+              <span className="flex items-center gap-1 text-[10px] text-amber-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 pulse-dot" />
+                busy
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-[10px] text-slate-500">
+                <span className="h-1.5 w-1.5 rounded-full bg-slate-600" />
+                idle
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="mt-2">
+        {isBusy ? (
+          <button
+            onClick={() => onViewAgent(busyAgent.id)}
+            className="text-[11px] text-amber-400 hover:text-amber-300 transition-colors"
+          >
+            View...
+          </button>
+        ) : (
+          <button
+            onClick={onAssign}
+            className="text-[11px] text-amber-400 hover:text-amber-300 transition-colors"
+          >
+            Assign Task
+          </button>
+        )}
+      </div>
+      {/* Tooltip */}
+      {showTooltip && persona.description && (
+        <div className="absolute left-0 bottom-full mb-2 z-50 w-64 rounded-lg border border-[#1e2231] bg-[#0f1117] p-3 shadow-xl pointer-events-none">
+          <p className="text-[11px] text-slate-300 leading-relaxed line-clamp-4">
+            {persona.description.split("\\n")[0]}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function Agents() {
@@ -865,6 +1235,10 @@ export default function Agents() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [presets, setPresets] = useState<AgentPreset[]>([]);
+  const [personas, setPersonas] = useState<AgentPersona[]>([]);
+  const [assignPersona, setAssignPersona] = useState<AgentPersona | null>(null);
+  const [showPersonaModal, setShowPersonaModal] = useState(false);
+  const [editingPersona, setEditingPersona] = useState<AgentPersona | undefined>(undefined);
   const [showLaunchPanel, setShowLaunchPanel] = useState(false);
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [showLinearImport, setShowLinearImport] = useState(false);
@@ -890,6 +1264,16 @@ export default function Agents() {
     }
   }, []);
 
+  const loadPersonas = useCallback(async () => {
+    if (!isTauriAvailable()) return;
+    try {
+      const result = await listAgentPersonas();
+      setPersonas(result.personas);
+    } catch (err) {
+      console.error("Failed to load personas:", err);
+    }
+  }, []);
+
   const refresh = useCallback(async () => {
     if (!isTauriAvailable()) return;
     try {
@@ -909,6 +1293,7 @@ export default function Agents() {
   useEffect(() => {
     refresh();
     loadPresets();
+    loadPersonas();
 
     // Check Linear connection status (non-blocking)
     if (isTauriAvailable()) {
@@ -939,7 +1324,7 @@ export default function Agents() {
       unlistenStatus?.();
       unlistenActivity?.();
     };
-  }, [refresh, loadPresets]);
+  }, [refresh, loadPresets, loadPersonas]);
 
   // ─── Load agent conversation when selected ──────────────────────────────
 
@@ -1066,6 +1451,47 @@ export default function Agents() {
     }
   }
 
+  async function handleAssignPersona(persona: AgentPersona, taskDesc: string, projectPath: string) {
+    try {
+      setError(null);
+      const fullTask = `You are a ${persona.name}. ${persona.system_prompt}\n\nTask: ${taskDesc}`;
+      await launchAgent("claude-code", projectPath, persona.name, fullTask);
+      setAssignPersona(null);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  function handleEditPersona(persona: AgentPersona) {
+    setEditingPersona(persona);
+    setShowPersonaModal(true);
+  }
+
+  async function handleDeletePersona(persona: AgentPersona) {
+    try {
+      setError(null);
+      await deleteAgentPersona(persona.department, persona.id);
+      loadPersonas();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  // Group personas by department
+  const personasByDepartment = personas.reduce<Record<string, AgentPersona[]>>((acc, p) => {
+    if (!acc[p.department]) acc[p.department] = [];
+    acc[p.department].push(p);
+    return acc;
+  }, {});
+
+  // Match running agents to personas by role name
+  function getBusyAgentForPersona(persona: AgentPersona): AgentProcess | null {
+    return agents.find(
+      (a) => a.status === "running" && a.role === persona.name
+    ) ?? null;
+  }
+
   function handleAddTask(column: string) {
     // Close any open modals first
     setShowLaunchPanel(false);
@@ -1141,40 +1567,143 @@ export default function Agents() {
       {/* Three-panel layout */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left: Agent Squad */}
-        <div className="flex w-[300px] shrink-0 flex-col border-r border-[#1e2231]">
+        <div className="flex w-[320px] shrink-0 flex-col border-r border-[#1e2231]">
           <div className="border-b border-[#1e2231] px-4 py-3">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Agent Squad ({agents.length})
+              Agent Squad
+              {agents.filter((a) => a.status === "running").length > 0 && (
+                <span className="ml-1.5 text-amber-400">
+                  ({agents.filter((a) => a.status === "running").length} active)
+                </span>
+              )}
             </h2>
           </div>
           <div className="flex-1 overflow-y-auto p-3">
-            <div className="flex flex-col gap-3">
-              {agents.length === 0 ? (
-                <div className="flex flex-col items-center py-12 text-slate-600">
-                  <p className="text-xs">No agents launched yet</p>
-                  <button
-                    onClick={() => setShowLaunchPanel(true)}
-                    className="mt-2 text-xs text-amber-400 hover:text-amber-300"
-                  >
-                    Launch one
-                  </button>
+            {personas.length === 0 ? (
+              <div className="flex flex-col gap-3">
+                {/* Fallback: show flat agent cards when no personas loaded */}
+                {agents.length === 0 ? (
+                  <div className="flex flex-col items-center py-12 text-slate-600">
+                    <p className="text-xs">No agents launched yet</p>
+                    <button
+                      onClick={() => setShowLaunchPanel(true)}
+                      className="mt-2 text-xs text-amber-400 hover:text-amber-300"
+                    >
+                      Launch one
+                    </button>
+                  </div>
+                ) : (
+                  agents.map((agent) => (
+                    <AgentCard
+                      key={agent.id}
+                      agent={agent}
+                      selected={selectedAgentId === agent.id}
+                      onStop={handleStopAgent}
+                      onClick={() =>
+                        setSelectedAgentId(
+                          selectedAgentId === agent.id ? null : agent.id
+                        )
+                      }
+                    />
+                  ))
+                )}
+                {/* + New Persona card in empty state */}
+                <button
+                  onClick={() => {
+                    setEditingPersona(undefined);
+                    setShowPersonaModal(true);
+                  }}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-[#2d3348] bg-transparent p-3 text-slate-500 transition-colors hover:border-amber-500/40 hover:text-slate-400"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  <span className="text-[11px]">New Persona</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {Object.entries(personasByDepartment).map(([dept, deptPersonas]) => (
+                  <div key={dept}>
+                    <h3 className="text-[10px] uppercase tracking-wider text-slate-600 mb-2">
+                      {dept.replace(/-/g, " ")}
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                      {deptPersonas.map((persona) => (
+                        <div key={persona.id} className="w-[calc(50%-4px)]">
+                          <PersonaCard
+                            persona={persona}
+                            busyAgent={getBusyAgentForPersona(persona)}
+                            onAssign={() => setAssignPersona(persona)}
+                            onViewAgent={(agentId) =>
+                              setSelectedAgentId(
+                                selectedAgentId === agentId ? null : agentId
+                              )
+                            }
+                            onEdit={() => handleEditPersona(persona)}
+                            onDelete={() => handleDeletePersona(persona)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                {/* + New Persona card */}
+                <div className="flex flex-wrap gap-2">
+                  <div className="w-[calc(50%-4px)]">
+                    <button
+                      onClick={() => {
+                        setEditingPersona(undefined);
+                        setShowPersonaModal(true);
+                      }}
+                      className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-[#2d3348] bg-transparent p-3 text-slate-500 transition-colors hover:border-amber-500/40 hover:text-slate-400"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                      <span className="text-[11px]">New Persona</span>
+                    </button>
+                  </div>
                 </div>
-              ) : (
-                agents.map((agent) => (
-                  <AgentCard
-                    key={agent.id}
-                    agent={agent}
-                    selected={selectedAgentId === agent.id}
-                    onStop={handleStopAgent}
-                    onClick={() =>
-                      setSelectedAgentId(
-                        selectedAgentId === agent.id ? null : agent.id
-                      )
-                    }
-                  />
-                ))
-              )}
-            </div>
+
+                {/* Show any running agents not matched to a persona */}
+                {agents.filter(
+                  (a) =>
+                    a.status === "running" &&
+                    !personas.some((p) => p.name === a.role)
+                ).length > 0 && (
+                  <div>
+                    <h3 className="text-[10px] uppercase tracking-wider text-slate-600 mb-2">
+                      Custom Agents
+                    </h3>
+                    <div className="flex flex-col gap-2">
+                      {agents
+                        .filter(
+                          (a) =>
+                            a.status === "running" &&
+                            !personas.some((p) => p.name === a.role)
+                        )
+                        .map((agent) => (
+                          <AgentCard
+                            key={agent.id}
+                            agent={agent}
+                            selected={selectedAgentId === agent.id}
+                            onStop={handleStopAgent}
+                            onClick={() =>
+                              setSelectedAgentId(
+                                selectedAgentId === agent.id ? null : agent.id
+                              )
+                            }
+                          />
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -1333,6 +1862,38 @@ export default function Agents() {
             <TestGenModal
               onClose={() => setShowTestGenModal(false)}
               onCreated={refresh}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Assign Persona Task Modal Overlay */}
+      {assignPersona && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto">
+            <AssignTaskModal
+              persona={assignPersona}
+              onClose={() => setAssignPersona(null)}
+              onAssign={(task, projectPath) =>
+                handleAssignPersona(assignPersona, task, projectPath)
+              }
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Create / Edit Persona Modal Overlay */}
+      {showPersonaModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto">
+            <PersonaModal
+              existingPersona={editingPersona}
+              existingDepartments={Object.keys(personasByDepartment)}
+              onClose={() => {
+                setShowPersonaModal(false);
+                setEditingPersona(undefined);
+              }}
+              onSaved={loadPersonas}
             />
           </div>
         </div>

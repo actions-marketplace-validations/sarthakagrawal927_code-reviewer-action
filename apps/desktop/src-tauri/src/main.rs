@@ -155,6 +155,10 @@ fn main() {
             commands::agents::list_agents,
             commands::agents::get_agent,
             commands::agents::detect_running_agents,
+            commands::agents::list_agent_personas,
+            commands::agents::create_agent_persona,
+            commands::agents::update_agent_persona,
+            commands::agents::delete_agent_persona,
             // Mission Control commands
             commands::mission::create_task,
             commands::mission::update_task,

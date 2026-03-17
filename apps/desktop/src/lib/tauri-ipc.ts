@@ -1644,3 +1644,68 @@ export function onPlaywrightGenStream(
     callback(event.payload);
   });
 }
+
+// ─── Agent Personas ─────────────────────────────────────────────────────────
+
+export interface AgentPersona {
+  id: string;
+  name: string;
+  department: string;
+  description: string;
+  color: string;
+  tools: string[];
+  system_prompt: string;
+}
+
+export async function listAgentPersonas(): Promise<{ personas: AgentPersona[] }> {
+  return safeInvoke("list_agent_personas");
+}
+
+export async function createAgentPersona(
+  department: string,
+  id: string,
+  name: string,
+  description: string,
+  color: string,
+  tools: string,
+  systemPrompt: string
+): Promise<void> {
+  await safeInvoke("create_agent_persona", {
+    department,
+    id,
+    name,
+    description,
+    color,
+    tools,
+    systemPrompt,
+  });
+}
+
+export async function updateAgentPersona(
+  department: string,
+  id: string,
+  opts: {
+    name?: string;
+    description?: string;
+    color?: string;
+    tools?: string;
+    systemPrompt?: string;
+  }
+): Promise<void> {
+  await safeInvoke("update_agent_persona", {
+    department,
+    id,
+    name: opts.name ?? null,
+    description: opts.description ?? null,
+    color: opts.color ?? null,
+    tools: opts.tools ?? null,
+    systemPrompt: opts.systemPrompt ?? null,
+  });
+}
+
+export async function deleteAgentPersona(
+  department: string,
+  id: string
+): Promise<void> {
+  await safeInvoke("delete_agent_persona", { department, id });
+}
