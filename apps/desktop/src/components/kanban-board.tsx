@@ -14,11 +14,10 @@ interface ColumnDef {
 }
 
 const columns: ColumnDef[] = [
-  { id: "backlog", label: "Backlog", icon: "\u2610", color: "text-slate-400" },
+  { id: "todo", label: "To Do", icon: "\u2610", color: "text-slate-400" },
   { id: "in_progress", label: "In Progress", icon: "\u25B6", color: "text-amber-400" },
   { id: "in_review", label: "Review", icon: "\u2714", color: "text-yellow-400" },
   { id: "in_test", label: "Test", icon: "\u25B6", color: "text-blue-400" },
-  { id: "done", label: "Done", icon: "\u2713", color: "text-emerald-400" },
 ];
 
 function TaskCard({
@@ -62,7 +61,7 @@ function TaskCard({
 
 export default function KanbanBoard({ tasks, onTaskClick, onAddTask }: KanbanBoardProps) {
   return (
-    <div className="grid grid-cols-5 gap-3">
+    <div className="grid grid-cols-4 gap-3">
       {columns.map((col) => {
         const colTasks = tasks.filter((t) => t.status === col.id);
         return (

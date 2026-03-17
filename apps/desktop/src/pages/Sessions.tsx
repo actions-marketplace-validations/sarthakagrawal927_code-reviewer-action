@@ -786,7 +786,7 @@ export default function Sessions() {
                               });
                             }
                           }}
-                          className="opacity-0 group-hover:opacity-100 shrink-0 p-1 text-slate-600 hover:text-red-400 transition-all"
+                          className="shrink-0 p-1 text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity duration-150"
                           title="Delete session"
                         >
                           <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -800,7 +800,7 @@ export default function Sessions() {
               })}
               {hasMore && (
                 <p className="py-2 text-center text-[10px] text-slate-600">
-                  {visibleCount} of {filtered.length}
+                  Showing {visibleCount} of {sessions.length} sessions
                 </p>
               )}
               {hasMoreSessions && (
