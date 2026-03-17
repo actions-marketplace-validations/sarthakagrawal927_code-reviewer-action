@@ -13,3 +13,4 @@ workers/*/.wrangler
 
 # Local Cloudflare Worker secrets
 .dev.vars
+apps/desktop/src-tauri/target/
