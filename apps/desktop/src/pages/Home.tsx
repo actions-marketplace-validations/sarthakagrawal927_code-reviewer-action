@@ -865,7 +865,6 @@ export default function Home() {
               );})
 
             )}
-            <AddAccountInline onAdd={refreshDashboard} />
           </div>
         )}
       </div>
