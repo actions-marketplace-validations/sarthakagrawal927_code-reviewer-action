@@ -12,10 +12,7 @@ import {
 } from "@/lib/tauri-ipc";
 import type { ChatTab } from "@/lib/tauri-ipc";
 import { useChatStream } from "@/hooks/use-chat-stream";
-import type { RateLimitEventInfo } from "@/hooks/use-chat-stream";
 import ContextMeter from "@/components/context-meter";
-import CapacityIndicator from "@/components/capacity-indicator";
-import type { RateLimitInfo } from "@/components/capacity-indicator";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -179,7 +176,6 @@ export default function Chat() {
   const [tabsLoaded, setTabsLoaded] = useState(false);
 
   // Rate limit info from stream events
-  const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo | null>(null);
 
   // Track which tab initiated the current stream so events route correctly
   const streamingTabIdRef = useRef<string | null>(null);
@@ -266,9 +262,6 @@ export default function Chat() {
       updateTabState(targetTabId, (prev) =>
         prev.chatState !== "streaming" ? { ...prev, chatState: "streaming" } : prev
       );
-    },
-    onRateLimitUpdate(info: RateLimitEventInfo) {
-      setRateLimitInfo(info);
     },
   });
 
@@ -771,7 +764,6 @@ export default function Chat() {
         </div>
         {/* Context meter + Capacity indicator */}
         <div className="flex items-center justify-between mt-1.5">
-          <CapacityIndicator rateLimitInfo={rateLimitInfo} />
           <ContextMeter
             inputTokens={stats.inputTokens}
             outputTokens={stats.outputTokens}

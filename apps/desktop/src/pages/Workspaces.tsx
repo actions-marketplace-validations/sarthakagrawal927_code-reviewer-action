@@ -33,8 +33,6 @@ import type { WorkspaceRow, FileEntry, FilePreview, CICheck, GitChangedFile, Dif
 import { useChatStream } from "@/hooks/use-chat-stream";
 import type { RateLimitEventInfo } from "@/hooks/use-chat-stream";
 import ContextMeter from "@/components/context-meter";
-import CapacityIndicator from "@/components/capacity-indicator";
-import type { RateLimitInfo } from "@/components/capacity-indicator";
 import CreatePrModal from "@/components/create-pr-modal";
 import DiffViewer from "@/components/diff-viewer";
 import PrStatusPanel from "@/components/pr-status-panel";
@@ -874,7 +872,6 @@ function WorkspaceChat({
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [thinkingEnabled, setThinkingEnabled] = useState(false);
   const [planMode, setPlanMode] = useState(false);
-  const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -903,9 +900,6 @@ function WorkspaceChat({
     },
     onTextUpdate() {
       if (chatState !== "streaming") setChatState("streaming");
-    },
-    onRateLimitUpdate(info: RateLimitEventInfo) {
-      setRateLimitInfo(info);
     },
   });
 
@@ -1203,7 +1197,6 @@ function WorkspaceChat({
           </button>
 
           <span className="ml-auto flex items-center gap-2">
-            <CapacityIndicator rateLimitInfo={rateLimitInfo} compact />
             <ContextMeter
               inputTokens={chatStats.inputTokens}
               outputTokens={chatStats.outputTokens}
