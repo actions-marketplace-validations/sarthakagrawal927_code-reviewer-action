@@ -160,7 +160,6 @@ function useScrollToBottom(
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 }
 
@@ -190,7 +189,7 @@ export default function Chat() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // ─── Active tab state accessors ────────────────────────────────────────
-  const activeTab = tabs.find((t) => t.id === activeTabId);
+  const _activeTab = tabs.find((t) => t.id === activeTabId);
   const activeState = activeTabId ? tabStates[activeTabId] : undefined;
 
   const updateActiveState = useCallback(
@@ -369,7 +368,6 @@ export default function Chat() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ─── Load session history when switching to a tab with a session ──────
@@ -417,7 +415,6 @@ export default function Chat() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTabId, tabsLoaded]);
 
   // ─── Auto-scroll ──────────────────────────────────────────────────────

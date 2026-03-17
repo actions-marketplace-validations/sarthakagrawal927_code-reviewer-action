@@ -1440,7 +1440,7 @@ function WorkspaceRightPanel({
   const [gitStatus, setGitStatus] = useState<{
     changed_files: number;
   } | null>(null);
-  const [gitLoading, setGitLoading] = useState(false);
+  const [_gitLoading, setGitLoading] = useState(false);
 
   useEffect(() => {
     if (!isTauriAvailable()) return;

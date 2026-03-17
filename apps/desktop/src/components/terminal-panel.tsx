@@ -158,7 +158,6 @@ export default function TerminalPanel({ cwd, terminalId }: TerminalPanelProps) {
     };
     // We intentionally depend on terminalId + cwd so a new terminal is created
     // if the workspace changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [terminalId, cwd]);
 
   return (
