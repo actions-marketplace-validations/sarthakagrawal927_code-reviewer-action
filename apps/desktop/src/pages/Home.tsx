@@ -92,7 +92,7 @@ function UsageBar({
       paceColor = "text-emerald-400/80";
     } else if (pct > onTrackPct + 0.5) {
       paceLabel = `${Math.round(delta)}% ahead of pace`;
-      paceColor = "text-amber-400/80";
+      paceColor = "text-red-400/80";
     } else {
       paceLabel = "on pace";
       paceColor = "text-slate-500";
