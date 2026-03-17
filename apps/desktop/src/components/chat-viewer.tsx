@@ -287,11 +287,6 @@ export default function ChatViewer({
     });
   }, []);
 
-  useEffect(() => {
-    const el = scrollContainerRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages.length, localMessages.length, chatSending, chatStreamingText, waitingForResponse]);
-
   const [searchInSession, setSearchInSession] = useState("");
 
   // ─── Chat input state ─────────────────────────────────────────────────
@@ -345,6 +340,12 @@ export default function ChatViewer({
   });
 
   chatStatsRef.current = chatStats;
+
+  // Auto-scroll to bottom on new messages or streaming updates
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages.length, localMessages.length, chatSending, chatStreamingText, waitingForResponse]);
 
   // Cleanup timers on unmount
   useEffect(() => {

@@ -174,7 +174,7 @@ function InlineCommentForm({
 
 function CommentCard({
   comment,
-  onDelete: _onDelete,
+  onDelete,
 }: {
   comment: DiffComment;
   onDelete: (id: string) => void;

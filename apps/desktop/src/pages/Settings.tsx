@@ -482,7 +482,7 @@ export default function Settings() {
   // Appearance
   const [compactMode, toggleCompactMode] = useBoolPref("compact_mode", false);
   const [showLineNumbers, toggleShowLineNumbers] = useBoolPref("show_line_numbers", true);
-  const [_showCosts, toggleShowCosts] = useBoolPref("show_costs", true);
+  const [showCosts, toggleShowCosts] = useBoolPref("show_costs", true);
 
   // Agent defaults
   const [defaultAdapter, setDefaultAdapter] = usePref("default_adapter", "claude-code");
