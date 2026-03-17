@@ -21,6 +21,7 @@ import {
   checkLinearConnection,
   listLinearIssues,
   importLinearIssues,
+  listSessions,
 } from "@/lib/tauri-ipc";
 import type { AgentProcess, Task, ActivityEvent, AgentPreset, LinearIssue, SessionRow, MessageRow } from "@/lib/tauri-ipc";
 
@@ -794,26 +795,54 @@ export default function Agents() {
       return;
     }
 
-    const sessionId = selectedAgent.session_id;
-    if (!sessionId) {
-      setAgentSession(null);
-      setAgentMessages([]);
-      setAgentMessagesLoading(false);
-      return;
-    }
+    let cancelled = false;
 
-    // Initial load
-    setAgentMessagesLoading(true);
-    loadAgentSession(sessionId).finally(() => setAgentMessagesLoading(false));
+    (async () => {
+      let sessionId = selectedAgent.session_id;
 
-    // Poll every 5s if agent is running
-    if (selectedAgent.status === "running") {
-      pollIntervalRef.current = setInterval(() => {
-        loadAgentSession(sessionId);
-      }, 5000);
-    }
+      // If no session_id stored, try to find a matching session by project path
+      if (!sessionId && selectedAgent.project_path && isTauriAvailable()) {
+        setAgentMessagesLoading(true);
+        try {
+          const result = await listSessions(undefined, selectedAgent.project_path, 10, 0);
+          if (cancelled) return;
+          const agentStart = selectedAgent.started_at ? new Date(selectedAgent.started_at).getTime() : 0;
+          const match = result.find((s: SessionRow) => {
+            const sessionStart = s.first_message ? new Date(s.first_message).getTime() : 0;
+            return Math.abs(sessionStart - agentStart) < 60000;
+          });
+          if (match) {
+            sessionId = match.id;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (cancelled) return;
+
+      if (!sessionId) {
+        setAgentSession(null);
+        setAgentMessages([]);
+        setAgentMessagesLoading(false);
+        return;
+      }
+
+      // Initial load
+      setAgentMessagesLoading(true);
+      await loadAgentSession(sessionId);
+      if (!cancelled) setAgentMessagesLoading(false);
+
+      // Poll every 5s if agent is running
+      if (!cancelled && selectedAgent.status === "running" && sessionId) {
+        pollIntervalRef.current = setInterval(() => {
+          loadAgentSession(sessionId!);
+        }, 5000);
+      }
+    })();
 
     return () => {
+      cancelled = true;
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
@@ -1019,18 +1048,26 @@ export default function Agents() {
             </div>
 
             {/* Conversation body */}
-            {!selectedAgent.session_id ? (
+            {agentMessagesLoading ? (
               <div className="flex flex-1 flex-col items-center justify-center text-slate-600">
                 <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-400 border-t-transparent mb-3" />
-                <p className="text-xs">Waiting for first message...</p>
-                <p className="text-[10px] text-slate-700 mt-1">Agent is initializing</p>
+                <p className="text-xs">Loading conversation...</p>
+              </div>
+            ) : agentMessages.length === 0 && !selectedAgent.session_id ? (
+              <div className="flex flex-1 flex-col items-center justify-center text-slate-600">
+                <p className="text-xs">No conversation found</p>
+                <p className="text-[10px] text-slate-700 mt-1">
+                  {selectedAgent.status === "running"
+                    ? "Agent is still running — messages will appear after re-indexing"
+                    : "Session may not have been indexed yet. Try triggering a re-index from Home."}
+                </p>
               </div>
             ) : (
               <div className="flex-1 overflow-hidden">
                 <ChatViewer
                   messages={agentMessages}
                   session={agentSession ?? undefined}
-                  isLoading={agentMessagesLoading}
+                  isLoading={false}
                 />
               </div>
             )}
