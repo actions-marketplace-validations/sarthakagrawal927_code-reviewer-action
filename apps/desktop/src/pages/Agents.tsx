@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import AgentCard from "@/components/agent-card";
 import KanbanBoard from "@/components/kanban-board";
-import ActivityFeed from "@/components/activity-feed";
 import ChatViewer from "@/components/chat-viewer";
 import DirectoryPicker from "@/components/directory-picker";
 import ReviewForm from "@/components/review-form";
@@ -862,64 +861,6 @@ function TestGenModal({
   );
 }
 
-// ─── Assign Task Modal (for persona) ─────────────────────────────────────────
-
-function AssignTaskModal({
-  persona,
-  onClose,
-  onAssign,
-}: {
-  persona: AgentPersona;
-  onClose: () => void;
-  onAssign: (task: string, projectPath: string) => void;
-}) {
-  const [task, setTask] = useState("");
-  const [projectPath, setProjectPath] = useState("");
-
-  const inputClass =
-    "rounded-lg border border-[#1e2231] bg-[#0f1117] px-3 py-2 text-sm text-slate-200 placeholder-slate-600 outline-none focus:border-amber-500/50";
-
-  return (
-    <div className="rounded-xl border border-[#1e2231] bg-[#13151c] p-5 fade-in">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="text-sm font-semibold text-slate-200">
-            Assign Task to {persona.name}
-          </h3>
-          <p className="text-[11px] text-slate-500 mt-0.5">{persona.department}</p>
-        </div>
-        <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-sm">
-          {"\u2715"}
-        </button>
-      </div>
-      <div className="flex flex-col gap-3">
-        <DirectoryPicker
-          value={projectPath}
-          onChange={setProjectPath}
-          label="Project Directory"
-        />
-        <textarea
-          value={task}
-          onChange={(e) => setTask(e.target.value)}
-          placeholder="Describe what this agent should work on..."
-          rows={4}
-          className={`resize-none ${inputClass}`}
-          autoFocus
-        />
-        <button
-          onClick={() => {
-            if (task.trim() && projectPath.trim()) onAssign(task, projectPath);
-          }}
-          disabled={!task.trim() || !projectPath.trim()}
-          className="self-start rounded-lg bg-amber-500 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-50"
-        >
-          Launch
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ─── Persona Modal (Create / Edit) ──────────────────────────────────────────
 
 const PERSONA_COLORS = ["amber", "blue", "purple", "green", "red", "slate"] as const;
@@ -1108,7 +1049,7 @@ function PersonaModal({
   );
 }
 
-// ─── Persona Card ────────────────────────────────────────────────────────────
+// ─── Compact Persona Card (left panel) ───────────────────────────────────────
 
 const COLOR_MAP: Record<string, string> = {
   red: "#ef4444",
@@ -1130,100 +1071,226 @@ const COLOR_MAP: Record<string, string> = {
   rose: "#f43f5e",
 };
 
-function PersonaCard({
+function CompactPersonaCard({
   persona,
   busyAgent,
-  onAssign,
-  onViewAgent,
+  selected,
+  onClick,
   onEdit,
   onDelete,
 }: {
   persona: AgentPersona;
   busyAgent: AgentProcess | null;
-  onAssign: () => void;
-  onViewAgent: (agentId: string) => void;
+  selected: boolean;
+  onClick: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const [showTooltip, setShowTooltip] = useState(false);
   const isBusy = busyAgent !== null && busyAgent.status === "running";
   const accentColor = COLOR_MAP[persona.color] || "#f59e0b";
 
   return (
-    <div
-      className="group relative rounded-xl border border-[#1e2231] bg-[#13151c] p-3 transition-colors hover:border-[#2d3348]"
-      style={{ borderLeftColor: accentColor, borderLeftWidth: 3 }}
-      onMouseEnter={() => setShowTooltip(true)}
-      onMouseLeave={() => setShowTooltip(false)}
+    <button
+      onClick={onClick}
+      className={`group relative w-full text-left rounded-lg border p-3 transition-colors ${
+        selected
+          ? "border-amber-500/30 bg-amber-500/5"
+          : "border-[#1e2231] bg-[#13151c] hover:border-[#2d3348]"
+      }`}
+      style={{ borderLeftColor: accentColor, borderLeftWidth: 2 }}
     >
       {/* Edit / Delete icons — visible on hover */}
-      <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
+      <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <span
+          role="button"
+          tabIndex={0}
           onClick={(e) => { e.stopPropagation(); onEdit(); }}
-          className="rounded p-0.5 text-slate-500 hover:text-slate-300 hover:bg-[#1e2231] transition-colors"
+          onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onEdit(); } }}
+          className="rounded p-0.5 text-slate-500 hover:text-slate-300 hover:bg-[#1e2231] transition-colors cursor-pointer"
           title="Edit persona"
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
           </svg>
-        </button>
-        <button
+        </span>
+        <span
+          role="button"
+          tabIndex={0}
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="rounded p-0.5 text-slate-500 hover:text-red-400 hover:bg-[#1e2231] transition-colors"
+          onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onDelete(); } }}
+          className="rounded p-0.5 text-slate-500 hover:text-red-400 hover:bg-[#1e2231] transition-colors cursor-pointer"
           title="Delete persona"
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
-        </button>
+        </span>
       </div>
-      <div className="flex items-start justify-between">
-        <div className="min-w-0 flex-1">
-          <p className="text-[12px] font-medium text-slate-200 truncate">
-            {persona.name}
-          </p>
-          <div className="flex items-center gap-1.5 mt-1">
-            {isBusy ? (
-              <span className="flex items-center gap-1 text-[10px] text-amber-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 pulse-dot" />
-                busy
-              </span>
-            ) : (
-              <span className="flex items-center gap-1 text-[10px] text-slate-500">
-                <span className="h-1.5 w-1.5 rounded-full bg-slate-600" />
-                idle
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-      <div className="mt-2">
+
+      <p className="text-[13px] font-medium text-slate-200 truncate pr-10">
+        {persona.name}
+      </p>
+      <p className="text-[11px] text-slate-500 truncate mt-0.5">
+        {persona.description ? persona.description.split("\\n")[0] : "No description"}
+      </p>
+      <div className="flex items-center gap-1.5 mt-1.5">
         {isBusy ? (
-          <button
-            onClick={() => onViewAgent(busyAgent.id)}
-            className="text-[11px] text-amber-400 hover:text-amber-300 transition-colors"
-          >
-            View...
-          </button>
+          <>
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span className="text-[10px] text-amber-400 truncate">
+              {busyAgent.role
+                ? busyAgent.role.slice(0, 40) + (busyAgent.role.length > 40 ? ".." : "")
+                : "busy"}
+            </span>
+          </>
         ) : (
-          <button
-            onClick={onAssign}
-            className="text-[11px] text-amber-400 hover:text-amber-300 transition-colors"
-          >
-            Assign Task
-          </button>
+          <>
+            <span className="h-1.5 w-1.5 rounded-full bg-slate-600" />
+            <span className="text-[10px] text-slate-500">idle</span>
+          </>
         )}
       </div>
-      {/* Tooltip */}
-      {showTooltip && persona.description && (
-        <div className="absolute left-0 bottom-full mb-2 z-50 w-64 rounded-lg border border-[#1e2231] bg-[#0f1117] p-3 shadow-xl pointer-events-none">
-          <p className="text-[11px] text-slate-300 leading-relaxed line-clamp-4">
-            {persona.description.split("\\n")[0]}
+    </button>
+  );
+}
+
+// ─── Persona Detail Panel (right panel) ──────────────────────────────────────
+
+function PersonaDetailPanel({
+  persona,
+  busyAgent,
+  onBack,
+  onAssign,
+  onViewAgent,
+}: {
+  persona: AgentPersona;
+  busyAgent: AgentProcess | null;
+  onBack: () => void;
+  onAssign: (task: string, projectPath: string) => void;
+  onViewAgent: (agentId: string) => void;
+}) {
+  const [task, setTask] = useState("");
+  const [projectPath, setProjectPath] = useState("");
+  const isBusy = busyAgent !== null && busyAgent.status === "running";
+  const accentColor = COLOR_MAP[persona.color] || "#f59e0b";
+
+  const inputClass =
+    "rounded-lg border border-[#1e2231] bg-[#0f1117] px-3 py-2 text-sm text-slate-200 placeholder-slate-600 outline-none focus:border-amber-500/50";
+
+  // If persona is busy, redirect to agent conversation view
+  if (isBusy) {
+    return (
+      <div className="flex flex-1 flex-col p-6">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1.5 text-[12px] text-slate-500 hover:text-slate-300 transition-colors mb-6 self-start"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+          Back to Board
+        </button>
+
+        <div className="flex items-center gap-3 mb-4">
+          <div
+            className="h-8 w-1 rounded-full"
+            style={{ backgroundColor: accentColor }}
+          />
+          <div>
+            <h2 className="text-lg font-semibold text-slate-100">{persona.name}</h2>
+            <p className="text-[12px] text-slate-500">
+              {persona.department.replace(/-/g, " ")}
+            </p>
+          </div>
+          <span className="ml-auto flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+            Running
+          </span>
+        </div>
+
+        <p className="text-sm text-slate-400 mb-6">
+          This agent is currently working. View the live conversation below.
+        </p>
+
+        <button
+          onClick={() => onViewAgent(busyAgent.id)}
+          className="self-start rounded-lg bg-amber-500 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-600"
+        >
+          View Conversation
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-1 flex-col p-6">
+      <button
+        onClick={onBack}
+        className="flex items-center gap-1.5 text-[12px] text-slate-500 hover:text-slate-300 transition-colors mb-6 self-start"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+        Back to Board
+      </button>
+
+      <div className="flex items-center gap-3 mb-4">
+        <div
+          className="h-8 w-1 rounded-full"
+          style={{ backgroundColor: accentColor }}
+        />
+        <div>
+          <h2 className="text-lg font-semibold text-slate-100">{persona.name}</h2>
+          <p className="text-[12px] text-slate-500">
+            {persona.department.replace(/-/g, " ")} &middot; {persona.color}
           </p>
         </div>
+      </div>
+
+      {persona.description && (
+        <p className="text-sm text-slate-400 mb-4 leading-relaxed">
+          {persona.description}
+        </p>
       )}
+
+      {persona.tools.length > 0 && (
+        <div className="mb-6">
+          <span className="text-[11px] text-slate-500">Tools: </span>
+          <span className="text-[11px] text-slate-300">
+            {persona.tools.join(", ")}
+          </span>
+        </div>
+      )}
+
+      <div className="rounded-lg border border-[#1e2231] bg-[#0f1117] p-4">
+        <h3 className="text-[12px] font-medium text-slate-300 mb-3">Assign Task</h3>
+        <div className="flex flex-col gap-3">
+          <DirectoryPicker
+            value={projectPath}
+            onChange={setProjectPath}
+            label="Project Directory"
+          />
+          <textarea
+            value={task}
+            onChange={(e) => setTask(e.target.value)}
+            placeholder="Describe what this agent should work on..."
+            rows={4}
+            className={`resize-none ${inputClass}`}
+            autoFocus
+          />
+          <button
+            onClick={() => {
+              if (task.trim() && projectPath.trim()) onAssign(task, projectPath);
+            }}
+            disabled={!task.trim() || !projectPath.trim()}
+            className="self-start rounded-lg bg-amber-500 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-50"
+          >
+            Launch Agent
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1233,10 +1300,10 @@ function PersonaCard({
 export default function Agents() {
   const [agents, setAgents] = useState<AgentProcess[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [activity, setActivity] = useState<ActivityEvent[]>([]);
+  const [_activity, setActivity] = useState<ActivityEvent[]>([]);
   const [presets, setPresets] = useState<AgentPreset[]>([]);
   const [personas, setPersonas] = useState<AgentPersona[]>([]);
-  const [assignPersona, setAssignPersona] = useState<AgentPersona | null>(null);
+  const [selectedPersona, setSelectedPersona] = useState<AgentPersona | null>(null);
   const [showPersonaModal, setShowPersonaModal] = useState(false);
   const [editingPersona, setEditingPersona] = useState<AgentPersona | undefined>(undefined);
   const [showLaunchPanel, setShowLaunchPanel] = useState(false);
@@ -1253,6 +1320,14 @@ export default function Agents() {
   const [agentMessages, setAgentMessages] = useState<MessageRow[]>([]);
   const [agentMessagesLoading, setAgentMessagesLoading] = useState(false);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Determine right panel mode
+  type RightPanelMode = "kanban" | "persona-detail" | "agent-conversation";
+  const rightPanelMode: RightPanelMode = selectedAgentId
+    ? "agent-conversation"
+    : selectedPersona
+      ? "persona-detail"
+      : "kanban";
 
   const loadPresets = useCallback(async () => {
     if (!isTauriAvailable()) return;
@@ -1286,7 +1361,7 @@ export default function Agents() {
       setTasks(taskList);
       setActivity(activityList);
     } catch (err) {
-      console.error("Failed to refresh Mission Control data:", err);
+      console.error("Failed to refresh data:", err);
     }
   }, []);
 
@@ -1456,7 +1531,7 @@ export default function Agents() {
       setError(null);
       const fullTask = `You are a ${persona.name}. ${persona.system_prompt}\n\nTask: ${taskDesc}`;
       await launchAgent("claude-code", projectPath, persona.name, fullTask);
-      setAssignPersona(null);
+      setSelectedPersona(null);
       refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -1472,6 +1547,7 @@ export default function Agents() {
     try {
       setError(null);
       await deleteAgentPersona(persona.department, persona.id);
+      if (selectedPersona?.id === persona.id) setSelectedPersona(null);
       loadPersonas();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -1512,13 +1588,18 @@ export default function Agents() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-[#1e2231] px-6 py-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-100">Mission Control</h1>
-          <p className="mt-0.5 text-sm text-slate-500">
-            Manage agents, tasks, and monitor activity
-          </p>
+      {/* Header — minimal: task count left, actions right */}
+      <div className="flex items-center justify-between border-b border-[#1e2231] px-6 py-3">
+        <div className="flex items-center gap-3">
+          <span className="text-[13px] text-slate-400">
+            {tasks.length} {tasks.length === 1 ? "task" : "tasks"}
+          </span>
+          {agents.filter((a) => a.status === "running").length > 0 && (
+            <span className="flex items-center gap-1.5 text-[12px] text-amber-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+              {agents.filter((a) => a.status === "running").length} running
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {linearConnected && (
@@ -1528,7 +1609,7 @@ export default function Agents() {
                 setShowCreateTask(false);
                 setShowLaunchPanel(false);
               }}
-              className="rounded-lg border border-[#5E6AD2]/30 px-4 py-2 text-sm font-medium text-[#5E6AD2] transition-colors hover:border-[#5E6AD2]/60 hover:bg-[#5E6AD2]/5"
+              className="rounded-lg border border-[#5E6AD2]/30 px-3 py-1.5 text-[12px] font-medium text-[#5E6AD2] transition-colors hover:border-[#5E6AD2]/60 hover:bg-[#5E6AD2]/5"
             >
               Import from Linear
             </button>
@@ -1539,20 +1620,9 @@ export default function Agents() {
               setShowLaunchPanel(false);
               setShowLinearImport(false);
             }}
-            className="rounded-lg border border-[#1e2231] px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-[#2d3348] hover:text-white"
+            className="rounded-lg border border-[#1e2231] px-3 py-1.5 text-[12px] font-medium text-slate-300 transition-colors hover:border-[#2d3348] hover:text-white"
           >
             + Task
-          </button>
-          <button
-            onClick={() => {
-              setShowLaunchPanel(!showLaunchPanel);
-              setShowCreateTask(false);
-              setShowLinearImport(false);
-            }}
-            className="flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-600"
-          >
-            <span>+</span>
-            Launch Agent
           </button>
         </div>
       </div>
@@ -1564,32 +1634,30 @@ export default function Agents() {
         </div>
       )}
 
-      {/* Three-panel layout */}
+      {/* Two-panel layout */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left: Agent Squad */}
+        {/* Left panel: Agent Squad (320px) */}
         <div className="flex w-[320px] shrink-0 flex-col border-r border-[#1e2231]">
           <div className="border-b border-[#1e2231] px-4 py-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
               Agent Squad
-              {agents.filter((a) => a.status === "running").length > 0 && (
-                <span className="ml-1.5 text-amber-400">
-                  ({agents.filter((a) => a.status === "running").length} active)
-                </span>
-              )}
             </h2>
           </div>
-          <div className="flex-1 overflow-y-auto p-3">
+          <div className="flex-1 overflow-y-auto p-4">
             {personas.length === 0 ? (
               <div className="flex flex-col gap-3">
                 {/* Fallback: show flat agent cards when no personas loaded */}
                 {agents.length === 0 ? (
                   <div className="flex flex-col items-center py-12 text-slate-600">
-                    <p className="text-xs">No agents launched yet</p>
+                    <p className="text-xs">No personas yet</p>
                     <button
-                      onClick={() => setShowLaunchPanel(true)}
+                      onClick={() => {
+                        setEditingPersona(undefined);
+                        setShowPersonaModal(true);
+                      }}
                       className="mt-2 text-xs text-amber-400 hover:text-amber-300"
                     >
-                      Launch one
+                      Create one
                     </button>
                   </div>
                 ) : (
@@ -1599,23 +1667,24 @@ export default function Agents() {
                       agent={agent}
                       selected={selectedAgentId === agent.id}
                       onStop={handleStopAgent}
-                      onClick={() =>
+                      onClick={() => {
+                        setSelectedPersona(null);
                         setSelectedAgentId(
                           selectedAgentId === agent.id ? null : agent.id
-                        )
-                      }
+                        );
+                      }}
                     />
                   ))
                 )}
-                {/* + New Persona card in empty state */}
+                {/* + New Persona */}
                 <button
                   onClick={() => {
                     setEditingPersona(undefined);
                     setShowPersonaModal(true);
                   }}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-[#2d3348] bg-transparent p-3 text-slate-500 transition-colors hover:border-amber-500/40 hover:text-slate-400"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#2d3348] bg-transparent py-2.5 text-slate-500 transition-colors hover:border-amber-500/40 hover:text-slate-400"
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19" />
                     <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
@@ -1623,51 +1692,40 @@ export default function Agents() {
                 </button>
               </div>
             ) : (
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col">
                 {Object.entries(personasByDepartment).map(([dept, deptPersonas]) => (
                   <div key={dept}>
-                    <h3 className="text-[10px] uppercase tracking-wider text-slate-600 mb-2">
+                    <h3 className="text-[10px] uppercase tracking-wider text-slate-600 mt-4 mb-2 px-1 first:mt-0">
                       {dept.replace(/-/g, " ")}
                     </h3>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-col gap-1.5">
                       {deptPersonas.map((persona) => (
-                        <div key={persona.id} className="w-[calc(50%-4px)]">
-                          <PersonaCard
-                            persona={persona}
-                            busyAgent={getBusyAgentForPersona(persona)}
-                            onAssign={() => setAssignPersona(persona)}
-                            onViewAgent={(agentId) =>
-                              setSelectedAgentId(
-                                selectedAgentId === agentId ? null : agentId
-                              )
+                        <CompactPersonaCard
+                          key={persona.id}
+                          persona={persona}
+                          busyAgent={getBusyAgentForPersona(persona)}
+                          selected={selectedPersona?.id === persona.id && rightPanelMode === "persona-detail"}
+                          onClick={() => {
+                            const busy = getBusyAgentForPersona(persona);
+                            if (busy) {
+                              // If busy, go directly to agent conversation
+                              setSelectedPersona(null);
+                              setSelectedAgentId(busy.id);
+                            } else {
+                              // Show persona detail
+                              setSelectedAgentId(null);
+                              setSelectedPersona(
+                                selectedPersona?.id === persona.id ? null : persona
+                              );
                             }
-                            onEdit={() => handleEditPersona(persona)}
-                            onDelete={() => handleDeletePersona(persona)}
-                          />
-                        </div>
+                          }}
+                          onEdit={() => handleEditPersona(persona)}
+                          onDelete={() => handleDeletePersona(persona)}
+                        />
                       ))}
                     </div>
                   </div>
                 ))}
-
-                {/* + New Persona card */}
-                <div className="flex flex-wrap gap-2">
-                  <div className="w-[calc(50%-4px)]">
-                    <button
-                      onClick={() => {
-                        setEditingPersona(undefined);
-                        setShowPersonaModal(true);
-                      }}
-                      className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-[#2d3348] bg-transparent p-3 text-slate-500 transition-colors hover:border-amber-500/40 hover:text-slate-400"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="12" y1="5" x2="12" y2="19" />
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                      </svg>
-                      <span className="text-[11px]">New Persona</span>
-                    </button>
-                  </div>
-                </div>
 
                 {/* Show any running agents not matched to a persona */}
                 {agents.filter(
@@ -1676,10 +1734,10 @@ export default function Agents() {
                     !personas.some((p) => p.name === a.role)
                 ).length > 0 && (
                   <div>
-                    <h3 className="text-[10px] uppercase tracking-wider text-slate-600 mb-2">
+                    <h3 className="text-[10px] uppercase tracking-wider text-slate-600 mt-4 mb-2 px-1">
                       Custom Agents
                     </h3>
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-1.5">
                       {agents
                         .filter(
                           (a) =>
@@ -1692,131 +1750,146 @@ export default function Agents() {
                             agent={agent}
                             selected={selectedAgentId === agent.id}
                             onStop={handleStopAgent}
-                            onClick={() =>
+                            onClick={() => {
+                              setSelectedPersona(null);
                               setSelectedAgentId(
                                 selectedAgentId === agent.id ? null : agent.id
-                              )
-                            }
+                              );
+                            }}
                           />
                         ))}
                     </div>
                   </div>
                 )}
+
+                {/* + New Persona */}
+                <button
+                  onClick={() => {
+                    setEditingPersona(undefined);
+                    setShowPersonaModal(true);
+                  }}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#2d3348] bg-transparent py-2.5 mt-4 text-slate-500 transition-colors hover:border-amber-500/40 hover:text-slate-400"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  <span className="text-[11px]">New Persona</span>
+                </button>
               </div>
             )}
           </div>
         </div>
 
-        {/* Center: Task Board (hidden when agent selected) */}
-        <div className={`flex flex-col overflow-hidden ${selectedAgentId ? "hidden" : "flex-1"}`}>
-          <div className="border-b border-[#1e2231] px-4 py-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Task Board ({tasks.length})
-            </h2>
-          </div>
-          <div className="flex-1 overflow-auto p-4">
-            <KanbanBoard
-              tasks={tasks}
-              onAddTask={handleAddTask}
-              onAssignAgent={(task) => {
-                // Find first idle persona and open assign modal with task pre-filled
-                const idle = personas.find(
-                  (p) => !agents.some((a) => a.status === "running" && a.role === p.name)
-                );
-                if (idle) {
-                  setAssignPersona(idle);
-                }
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Right: Agent Conversation or Activity Feed */}
-        {selectedAgentId && selectedAgent ? (
-          <div className="flex flex-1 flex-col overflow-hidden">
-            {/* Conversation header */}
-            <div className="shrink-0 border-b border-[#1e2231] px-4 py-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-semibold text-slate-200">
-                        {selectedAgent.display_name ?? `${selectedAgent.agent_type} agent`}
-                      </h3>
-                      {selectedAgent.status === "running" && (
-                        <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 pulse-dot" />
-                          Live
+        {/* Right panel: context-sensitive */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {rightPanelMode === "agent-conversation" && selectedAgent ? (
+            <>
+              {/* Conversation header */}
+              <div className="shrink-0 border-b border-[#1e2231] px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setSelectedAgentId(null)}
+                      className="flex items-center gap-1 text-[12px] text-slate-500 hover:text-slate-300 transition-colors"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="15 18 9 12 15 6" />
+                      </svg>
+                      Back to Board
+                    </button>
+                    <div className="h-4 w-px bg-[#1e2231]" />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-semibold text-slate-200">
+                          {selectedAgent.display_name ?? `${selectedAgent.agent_type} agent`}
+                        </h3>
+                        {selectedAgent.status === "running" && (
+                          <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            Live
+                          </span>
+                        )}
+                        {selectedAgent.status !== "running" && (
+                          <span className="rounded-full bg-slate-500/10 px-2 py-0.5 text-[10px] font-medium text-slate-400">
+                            {selectedAgent.status}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[11px] text-slate-500 uppercase tracking-wide">
+                          {selectedAgent.agent_type}
+                          {selectedAgent.role ? ` / ${selectedAgent.role}` : ""}
                         </span>
-                      )}
-                      {selectedAgent.status !== "running" && (
-                        <span className="rounded-full bg-slate-500/10 px-2 py-0.5 text-[10px] font-medium text-slate-400">
-                          {selectedAgent.status}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[11px] text-slate-500 uppercase tracking-wide">
-                        {selectedAgent.agent_type}
-                        {selectedAgent.role ? ` / ${selectedAgent.role}` : ""}
-                      </span>
-                      {selectedAgent.project_path && (
-                        <span className="mono text-[11px] text-slate-600 truncate max-w-[300px]">
-                          {selectedAgent.project_path}
-                        </span>
-                      )}
+                        {selectedAgent.project_path && (
+                          <span className="mono text-[11px] text-slate-600 truncate max-w-[300px]">
+                            {selectedAgent.project_path}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-                <button
-                  onClick={() => setSelectedAgentId(null)}
-                  className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-[#1a1d27] hover:text-slate-300"
-                  title="Close panel"
-                >
-                  <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </button>
               </div>
-            </div>
 
-            {/* Conversation body */}
-            {agentMessagesLoading ? (
-              <div className="flex flex-1 flex-col items-center justify-center text-slate-600">
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-400 border-t-transparent mb-3" />
-                <p className="text-xs">Loading conversation...</p>
-              </div>
-            ) : agentMessages.length === 0 && !selectedAgent.session_id ? (
-              <div className="flex flex-1 flex-col items-center justify-center text-slate-600">
-                <p className="text-xs">No conversation found</p>
-                <p className="text-[10px] text-slate-700 mt-1">
-                  {selectedAgent.status === "running"
-                    ? "Agent is still running — messages will appear after re-indexing"
-                    : "Session may not have been indexed yet. Try triggering a re-index from Home."}
-                </p>
-              </div>
-            ) : (
-              <div className="flex-1 overflow-hidden">
-                <ChatViewer
-                  messages={agentMessages}
-                  session={agentSession ?? undefined}
-                  isLoading={false}
-                />
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="flex w-[300px] shrink-0 flex-col border-l border-[#1e2231]">
-            <div className="border-b border-[#1e2231] px-4 py-3">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Activity Feed
-              </h2>
+              {/* Conversation body */}
+              {agentMessagesLoading ? (
+                <div className="flex flex-1 flex-col items-center justify-center text-slate-600">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-400 border-t-transparent mb-3" />
+                  <p className="text-xs">Loading conversation...</p>
+                </div>
+              ) : agentMessages.length === 0 && !selectedAgent.session_id ? (
+                <div className="flex flex-1 flex-col items-center justify-center text-slate-600">
+                  <p className="text-xs">No conversation found</p>
+                  <p className="text-[10px] text-slate-700 mt-1">
+                    {selectedAgent.status === "running"
+                      ? "Agent is still running — messages will appear after re-indexing"
+                      : "Session may not have been indexed yet. Try triggering a re-index from Home."}
+                  </p>
+                </div>
+              ) : (
+                <div className="flex-1 overflow-hidden">
+                  <ChatViewer
+                    messages={agentMessages}
+                    session={agentSession ?? undefined}
+                    isLoading={false}
+                  />
+                </div>
+              )}
+            </>
+          ) : rightPanelMode === "persona-detail" && selectedPersona ? (
+            <PersonaDetailPanel
+              persona={selectedPersona}
+              busyAgent={getBusyAgentForPersona(selectedPersona)}
+              onBack={() => setSelectedPersona(null)}
+              onAssign={(taskDesc, projectPath) =>
+                handleAssignPersona(selectedPersona, taskDesc, projectPath)
+              }
+              onViewAgent={(agentId) => {
+                setSelectedPersona(null);
+                setSelectedAgentId(agentId);
+              }}
+            />
+          ) : (
+            /* Default: Kanban board (full width, clean) */
+            <div className="flex-1 overflow-auto p-4">
+              <KanbanBoard
+                tasks={tasks}
+                onAddTask={handleAddTask}
+                onAssignAgent={(_task) => {
+                  // Find first idle persona and open persona detail
+                  const idle = personas.find(
+                    (p) => !agents.some((a) => a.status === "running" && a.role === p.name)
+                  );
+                  if (idle) {
+                    setSelectedAgentId(null);
+                    setSelectedPersona(idle);
+                  }
+                }}
+              />
             </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              <ActivityFeed events={activity} />
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Create Task Modal Overlay */}
@@ -1874,21 +1947,6 @@ export default function Agents() {
             <TestGenModal
               onClose={() => setShowTestGenModal(false)}
               onCreated={refresh}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Assign Persona Task Modal Overlay */}
-      {assignPersona && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto">
-            <AssignTaskModal
-              persona={assignPersona}
-              onClose={() => setAssignPersona(null)}
-              onAssign={(task, projectPath) =>
-                handleAssignPersona(assignPersona, task, projectPath)
-              }
             />
           </div>
         </div>
