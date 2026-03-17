@@ -2,6 +2,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useLocation } from "react-router-dom";
 import { useEffect, useRef } from "react";
 import StatusBar from "./status-bar";
+import CapacityIndicator from "./capacity-indicator";
 
 interface NavItem {
   label: string;
@@ -102,6 +103,11 @@ export default function Sidebar() {
 
       {/* System resource monitor */}
       <StatusBar />
+
+      {/* Capacity indicator */}
+      <div className="border-t border-[#1e2231] px-3 py-2">
+        <CapacityIndicator compact />
+      </div>
 
       {/* Bottom section */}
       <div className="border-t border-[#1e2231] px-3 py-2.5">

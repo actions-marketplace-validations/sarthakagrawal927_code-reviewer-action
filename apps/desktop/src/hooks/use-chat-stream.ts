@@ -2,10 +2,18 @@ import { useState, useEffect, useRef } from "react";
 import { onChatStream, isTauriAvailable } from "@/lib/tauri-ipc";
 import type { ChatStreamEvent } from "@/lib/tauri-ipc";
 
+export interface RateLimitEventInfo {
+  status: string;
+  resetsAt: number;
+  rateLimitType: string;
+  overageStatus: string;
+}
+
 interface UseChatStreamOptions {
   onAssistantDone: (text: string, sessionId?: string) => void;
   onSystemMessage: (text: string) => void;
   onTextUpdate?: () => void;
+  onRateLimitUpdate?: (info: RateLimitEventInfo) => void;
 }
 
 interface StreamStats {
@@ -80,7 +88,7 @@ export function useChatStream(opts: UseChatStreamOptions) {
               ...prev,
               elapsedMs: prev.startedAt ? Date.now() - prev.startedAt : 0,
             }));
-          }, 100);
+          }, 500);
           break;
         }
         case "text_delta": {
@@ -128,6 +136,18 @@ export function useChatStream(opts: UseChatStreamOptions) {
         case "system": {
           const text = (content.message as string) ?? JSON.stringify(content);
           optsRef.current.onSystemMessage(text);
+          break;
+        }
+        case "rate_limit_event": {
+          const info = content.rate_limit_info as {
+            status: string;
+            resetsAt: number;
+            rateLimitType: string;
+            overageStatus: string;
+          } | undefined;
+          if (info) {
+            optsRef.current.onRateLimitUpdate?.(info);
+          }
           break;
         }
       }

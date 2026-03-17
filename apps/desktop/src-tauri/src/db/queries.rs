@@ -1631,3 +1631,98 @@ pub fn next_chat_tab_position(conn: &Connection) -> Result<i64, rusqlite::Error>
     )?;
     Ok(max.unwrap_or(-1) + 1)
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Diff Comments
+// ─────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiffCommentRow {
+    pub id: String,
+    pub workspace_id: String,
+    pub file_path: String,
+    pub start_line: i64,
+    pub end_line: i64,
+    pub content: String,
+    pub status: String,
+    pub github_comment_id: Option<String>,
+    pub author: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+pub fn list_diff_comments(
+    conn: &Connection,
+    workspace_id: &str,
+) -> Result<Vec<DiffCommentRow>, rusqlite::Error> {
+    let sql = "
+        SELECT id, workspace_id, file_path, start_line, end_line,
+               content, status, github_comment_id, author, created_at, updated_at
+        FROM diff_comments
+        WHERE workspace_id = ?1
+        ORDER BY file_path, start_line
+    ";
+    let mut stmt = conn.prepare(sql)?;
+    let rows = stmt.query_map(params![workspace_id], |row| {
+        Ok(DiffCommentRow {
+            id: row.get(0)?,
+            workspace_id: row.get(1)?,
+            file_path: row.get(2)?,
+            start_line: row.get(3)?,
+            end_line: row.get(4)?,
+            content: row.get(5)?,
+            status: row.get(6)?,
+            github_comment_id: row.get(7)?,
+            author: row.get(8)?,
+            created_at: row.get(9)?,
+            updated_at: row.get(10)?,
+        })
+    })?;
+    rows.collect()
+}
+
+pub fn create_diff_comment(conn: &Connection, c: &DiffCommentRow) -> Result<(), rusqlite::Error> {
+    conn.execute(
+        "INSERT INTO diff_comments (
+            id, workspace_id, file_path, start_line, end_line,
+            content, status, github_comment_id, author, created_at, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        params![
+            c.id,
+            c.workspace_id,
+            c.file_path,
+            c.start_line,
+            c.end_line,
+            c.content,
+            c.status,
+            c.github_comment_id,
+            c.author,
+            c.created_at,
+            c.updated_at,
+        ],
+    )?;
+    Ok(())
+}
+
+pub fn update_diff_comment(
+    conn: &Connection,
+    id: &str,
+    content: Option<&str>,
+    status: Option<&str>,
+    updated_at: &str,
+) -> Result<(), rusqlite::Error> {
+    conn.execute(
+        "UPDATE diff_comments SET
+            content    = COALESCE(?2, content),
+            status     = COALESCE(?3, status),
+            updated_at = ?4
+         WHERE id = ?1",
+        params![id, content, status, updated_at],
+    )?;
+    Ok(())
+}
+
+pub fn delete_diff_comment(conn: &Connection, id: &str) -> Result<(), rusqlite::Error> {
+    conn.execute("DELETE FROM diff_comments WHERE id = ?1", params![id])?;
+    Ok(())
+}

@@ -497,6 +497,7 @@ export default function Settings() {
   const [notifyReviewDone, toggleNotifyReviewDone] = useBoolPref("notify_review_done", true);
   const [notifyAgentError, toggleNotifyAgentError] = useBoolPref("notify_agent_error", true);
   const [notifyTaskComplete, toggleNotifyTaskComplete] = useBoolPref("notify_task_complete", false);
+  const [notificationSound, toggleNotificationSound] = useBoolPref("notification_sound", true);
 
   function renderContent() {
     switch (activeCategory) {
@@ -719,6 +720,15 @@ export default function Settings() {
                 description="Notify when an agent finishes a task."
                 enabled={notifyTaskComplete}
                 onToggle={toggleNotifyTaskComplete}
+              />
+
+              <Divider />
+
+              <Toggle
+                label="Notification Sounds"
+                description="Play a short tone for success, error, and info events."
+                enabled={notificationSound}
+                onToggle={toggleNotificationSound}
               />
             </div>
           </div>

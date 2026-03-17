@@ -1,15 +1,24 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import ReviewForm from "@/components/review-form";
 import FindingCard from "@/components/finding-card";
+import MergedReview from "@/components/merged-review";
 import ScoreBadge from "@/components/score-badge";
 import {
   startLocalReview,
   startPrReview,
   getReview,
   listReviews,
+  finalizeReview,
   isTauriAvailable,
+  onReviewStateChanged,
 } from "@/lib/tauri-ipc";
-import type { ReviewTone, Review, ReviewFinding } from "@/lib/tauri-ipc";
+import type {
+  ReviewTone,
+  Review,
+  ReviewFinding,
+  MergedReviewResult,
+  ReviewStateCRDT,
+} from "@/lib/tauri-ipc";
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
@@ -24,6 +33,14 @@ export default function Review() {
 
   // Past reviews
   const [pastReviews, setPastReviews] = useState<Review[]>([]);
+
+  // Coordinated review merge result
+  const [mergedResult, setMergedResult] = useState<MergedReviewResult | null>(
+    null
+  );
+  // Live coordinated review state (for showing a "Finalize" button)
+  const [coordinatedState, setCoordinatedState] =
+    useState<ReviewStateCRDT | null>(null);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -77,6 +94,43 @@ export default function Review() {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
+
+  // Listen for coordinated review state changes
+  useEffect(() => {
+    if (!isTauriAvailable()) return;
+    let unlisten: (() => void) | null = null;
+    onReviewStateChanged((state) => {
+      setCoordinatedState(state);
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      unlisten?.();
+    };
+  }, []);
+
+  // Finalize a coordinated review
+  async function handleFinalizeCoordinated() {
+    if (!coordinatedState) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await finalizeReview(
+        coordinatedState.review_id,
+        coordinatedState.meta.repo_path
+      );
+      setMergedResult(result);
+      setCoordinatedState(null);
+      setIsLoading(false);
+      // Refresh past reviews
+      listReviews(10, 0)
+        .then(setPastReviews)
+        .catch(() => {});
+    } catch (err) {
+      setIsLoading(false);
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
 
   async function handleSubmitLocal(
     repoPath: string,
@@ -148,6 +202,7 @@ export default function Review() {
     setFindings([]);
     setActiveReviewId(null);
     setError(null);
+    setMergedResult(null);
     if (pollRef.current) {
       clearInterval(pollRef.current);
       pollRef.current = null;
@@ -308,8 +363,51 @@ export default function Review() {
         </div>
       )}
 
+      {/* Coordinated Review: Finalize Button */}
+      {coordinatedState && !mergedResult && (
+        <div className="max-w-2xl rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-amber-400">
+                Coordinated Review in Progress
+              </p>
+              <p className="mt-1 text-xs text-amber-400/70">
+                {Object.keys(coordinatedState.agent_status).length} agent
+                {Object.keys(coordinatedState.agent_status).length !== 1 ? "s" : ""}
+                {" \u00B7 "}
+                {coordinatedState.findings.length} finding
+                {coordinatedState.findings.length !== 1 ? "s" : ""} so far
+                {" \u00B7 "}
+                {Object.keys(coordinatedState.files_claimed).length} file
+                {Object.keys(coordinatedState.files_claimed).length !== 1 ? "s" : ""} claimed
+              </p>
+            </div>
+            {/* Show finalize button when all agents are done */}
+            {Object.values(coordinatedState.agent_status).every(
+              (a) => a.status === "done" || a.status === "stopped" || a.status === "error"
+            ) && (
+              <button
+                onClick={handleFinalizeCoordinated}
+                disabled={isLoading}
+                className="rounded-lg bg-amber-500 px-4 py-2 text-xs font-semibold text-black transition-colors hover:bg-amber-400 disabled:opacity-50"
+              >
+                {isLoading ? "Merging..." : "Finalize Review"}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Merged Coordinated Review Results */}
+      {mergedResult && (
+        <MergedReview
+          result={mergedResult}
+          onClose={() => setMergedResult(null)}
+        />
+      )}
+
       {/* Past Reviews */}
-      {pastReviews.length > 0 && !review && (
+      {pastReviews.length > 0 && !review && !mergedResult && (
         <div className="flex flex-col gap-4">
           <h2 className="text-sm font-semibold text-slate-200">
             Recent Reviews

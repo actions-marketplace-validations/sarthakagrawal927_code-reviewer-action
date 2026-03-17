@@ -1455,11 +1455,34 @@ export async function updateCoordinatedAgentStatus(
   await safeInvoke("update_agent_status", { reviewId, repoPath, agentId, status });
 }
 
-/** Finalize a coordinated review. Returns the total findings count. */
+/** A single merged finding with deduplication metadata. */
+export interface MergedFindingResult {
+  finding: ReviewFindingCRDT;
+  sources: string[];
+  is_duplicate: boolean;
+}
+
+/** Full result of finalizing a coordinated review (merge + persist). */
+export interface MergedReviewResult {
+  review_id: string;
+  findings: MergedFindingResult[];
+  summary: string;
+  total_files_reviewed: number;
+  agents_involved: string[];
+  duration_seconds: number;
+  unique_count: number;
+  duplicate_count: number;
+}
+
+/**
+ * Finalize a coordinated review — merges findings from all agents,
+ * deduplicates, persists to SQLite, archives the CRDT doc, and returns
+ * the full merged result with stats.
+ */
 export async function finalizeReview(
   reviewId: string,
   repoPath: string
-): Promise<{ findings_count: number }> {
+): Promise<MergedReviewResult> {
   return safeInvoke("finalize_review", { reviewId, repoPath });
 }
 
@@ -1476,4 +1499,69 @@ export function onReviewStateChanged(
   return listen<ReviewStateCRDT>("review-state-changed", (event) => {
     handler(event.payload);
   });
+}
+
+// ─── Diff Comment Commands ──────────────────────────────────────────────────
+
+export interface DiffComment {
+  id: string;
+  workspace_id: string;
+  file_path: string;
+  start_line: number;
+  end_line: number;
+  content: string;
+  status: string;
+  github_comment_id: string | null;
+  author: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getFileDiff(
+  repoPath: string,
+  filePath: string
+): Promise<{ diff: string }> {
+  return safeInvoke("get_file_diff", { repoPath, filePath });
+}
+
+export async function listDiffComments(
+  workspaceId: string
+): Promise<DiffComment[]> {
+  const resp = await safeInvoke<{ comments: DiffComment[] }>(
+    "list_diff_comments",
+    { workspaceId }
+  );
+  return resp.comments;
+}
+
+export async function createDiffComment(opts: {
+  workspaceId: string;
+  filePath: string;
+  startLine: number;
+  endLine: number;
+  content: string;
+}): Promise<DiffComment> {
+  return safeInvoke("create_diff_comment", {
+    workspaceId: opts.workspaceId,
+    filePath: opts.filePath,
+    startLine: opts.startLine,
+    endLine: opts.endLine,
+    content: opts.content,
+  });
+}
+
+export async function updateDiffComment(opts: {
+  id: string;
+  content?: string;
+  status?: string;
+}): Promise<void> {
+  await safeInvoke("update_diff_comment", {
+    id: opts.id,
+    content: opts.content ?? null,
+    status: opts.status ?? null,
+  });
+}
+
+export async function deleteDiffComment(id: string): Promise<void> {
+  await safeInvoke("delete_diff_comment", { id });
 }

@@ -3,6 +3,7 @@ import { Routes, Route, Outlet } from "react-router-dom";
 import Sidebar from "@/components/sidebar";
 import Onboarding from "@/components/onboarding";
 import CommandPalette from "@/components/command-palette";
+import KeyboardShortcuts from "@/components/keyboard-shortcuts";
 import { getPreference, isTauriAvailable } from "@/lib/tauri-ipc";
 
 // Pages
@@ -69,6 +70,11 @@ function useOnboarding() {
 function Shell() {
   const { showOnboarding, setShowOnboarding, ready } = useOnboarding();
   const { isOpen, close } = useCommandPalette();
+  const [sidebarVisible, setSidebarVisible] = useState(true);
+
+  const toggleSidebar = useCallback(() => {
+    setSidebarVisible((prev) => !prev);
+  }, []);
 
   if (!ready) {
     return (
@@ -83,11 +89,15 @@ function Shell() {
       {showOnboarding && (
         <Onboarding onComplete={() => setShowOnboarding(false)} />
       )}
-      <Sidebar />
+      {sidebarVisible && <Sidebar />}
       <main className="flex-1 overflow-y-auto">
         <Outlet />
       </main>
       <CommandPalette isOpen={isOpen} onClose={close} />
+      <KeyboardShortcuts
+        sidebarVisible={sidebarVisible}
+        toggleSidebar={toggleSidebar}
+      />
     </div>
   );
 }

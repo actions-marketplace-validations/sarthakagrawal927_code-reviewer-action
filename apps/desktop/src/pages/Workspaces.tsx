@@ -25,11 +25,21 @@ import {
   readFilePreview,
   openInApp,
   getGitRemoteInfo,
+  getGitChangedFiles,
   listCiChecks,
+  getFileDiff,
+  listDiffComments,
+  createDiffComment,
+  deleteDiffComment,
 } from "@/lib/tauri-ipc";
-import type { WorkspaceRow, FileEntry, FilePreview, CICheck } from "@/lib/tauri-ipc";
+import type { WorkspaceRow, FileEntry, FilePreview, CICheck, GitChangedFile, DiffComment } from "@/lib/tauri-ipc";
 import { useChatStream } from "@/hooks/use-chat-stream";
+import type { RateLimitEventInfo } from "@/hooks/use-chat-stream";
+import ContextMeter from "@/components/context-meter";
+import CapacityIndicator from "@/components/capacity-indicator";
+import type { RateLimitInfo } from "@/components/capacity-indicator";
 import CreatePrModal from "@/components/create-pr-modal";
+import DiffViewer from "@/components/diff-viewer";
 import PrStatusPanel from "@/components/pr-status-panel";
 import TerminalPanel from "@/components/terminal-panel";
 
@@ -867,6 +877,7 @@ function WorkspaceChat({
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [thinkingEnabled, setThinkingEnabled] = useState(false);
   const [planMode, setPlanMode] = useState(false);
+  const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -877,7 +888,7 @@ function WorkspaceChat({
 
   // ─── Stream handler ─────────────────────────────────────────────────────
 
-  const { sending, streamingText } = useChatStream({
+  const { sending, streamingText, stats: chatStats } = useChatStream({
     onAssistantDone(text, newSessionId) {
       setChatState("idle");
       if (text.trim()) {
@@ -895,6 +906,9 @@ function WorkspaceChat({
     },
     onTextUpdate() {
       if (chatState !== "streaming") setChatState("streaming");
+    },
+    onRateLimitUpdate(info: RateLimitEventInfo) {
+      setRateLimitInfo(info);
     },
   });
 
@@ -1198,7 +1212,211 @@ function WorkspaceChat({
           >
             Plan
           </button>
+
+          <span className="ml-auto flex items-center gap-2">
+            <CapacityIndicator rateLimitInfo={rateLimitInfo} compact />
+            <ContextMeter
+              inputTokens={chatStats.inputTokens}
+              outputTokens={chatStats.outputTokens}
+            />
+          </span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Changes Panel ──────────────────────────────────────────────────────
+
+function ChangesPanel({ workspace }: { workspace: WorkspaceRow }) {
+  const [files, setFiles] = useState<GitChangedFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [diffText, setDiffText] = useState<string>("");
+  const [diffLoading, setDiffLoading] = useState(false);
+  const [comments, setComments] = useState<DiffComment[]>([]);
+
+  // Load changed files
+  useEffect(() => {
+    if (!isTauriAvailable()) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    getGitChangedFiles(workspace.repo_path)
+      .then((result) => setFiles(result.files))
+      .catch(() => setFiles([]))
+      .finally(() => setLoading(false));
+  }, [workspace.repo_path, workspace.updated_at]);
+
+  // Load comments for this workspace
+  useEffect(() => {
+    if (!isTauriAvailable()) return;
+    listDiffComments(workspace.id)
+      .then(setComments)
+      .catch(() => setComments([]));
+  }, [workspace.id]);
+
+  // Load diff when a file is selected
+  useEffect(() => {
+    if (!selectedFile || !isTauriAvailable()) {
+      setDiffText("");
+      return;
+    }
+    setDiffLoading(true);
+    getFileDiff(workspace.repo_path, selectedFile)
+      .then((result) => setDiffText(result.diff))
+      .catch(() => setDiffText(""))
+      .finally(() => setDiffLoading(false));
+  }, [selectedFile, workspace.repo_path]);
+
+  const handleCommentCreate = useCallback(
+    async (startLine: number, endLine: number, content: string) => {
+      if (!selectedFile || !isTauriAvailable()) return;
+      try {
+        const newComment = await createDiffComment({
+          workspaceId: workspace.id,
+          filePath: selectedFile,
+          startLine,
+          endLine,
+          content,
+        });
+        setComments((prev) => [...prev, newComment]);
+      } catch (err) {
+        console.error("Failed to create comment:", err);
+      }
+    },
+    [selectedFile, workspace.id]
+  );
+
+  const handleCommentDelete = useCallback(
+    async (id: string) => {
+      if (!isTauriAvailable()) return;
+      try {
+        await deleteDiffComment(id);
+        setComments((prev) => prev.filter((c) => c.id !== id));
+      } catch (err) {
+        console.error("Failed to delete comment:", err);
+      }
+    },
+    []
+  );
+
+  const statusStyle: Record<string, { color: string; label: string }> = {
+    M: { color: "text-amber-400", label: "M" },
+    A: { color: "text-emerald-400", label: "A" },
+    D: { color: "text-red-400", label: "D" },
+    R: { color: "text-blue-400", label: "R" },
+    "?": { color: "text-slate-500", label: "?" },
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="h-4 w-4 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
+        <span className="ml-2 text-[11px] text-slate-500">Checking changes...</span>
+      </div>
+    );
+  }
+
+  if (files.length === 0) {
+    return (
+      <div className="p-3">
+        <div className="rounded-md bg-emerald-500/5 border border-emerald-500/10 px-3 py-2">
+          <span className="text-[11px] text-emerald-400">
+            Clean -- no uncommitted changes
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // Filter comments for selected file
+  const fileComments = selectedFile
+    ? comments.filter((c) => c.file_path === selectedFile)
+    : [];
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* File list header */}
+      <div className="px-3 py-2 border-b border-[#1e2231] shrink-0">
+        {selectedFile ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelectedFile(null)}
+              className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              {"\u2190"} Back
+            </button>
+            <span className="text-[10px] font-medium text-slate-400 font-mono truncate">
+              {selectedFile}
+            </span>
+            {fileComments.length > 0 && (
+              <span className="rounded-full bg-amber-500/20 px-1.5 text-[9px] font-semibold text-amber-400">
+                {fileComments.length}
+              </span>
+            )}
+          </div>
+        ) : (
+          <span className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
+            {files.length} changed file{files.length !== 1 ? "s" : ""} -- click to view diff
+          </span>
+        )}
+      </div>
+
+      {/* Content area */}
+      <div className="flex-1 overflow-y-auto">
+        {selectedFile ? (
+          /* Diff viewer for selected file */
+          diffLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
+              <span className="ml-2 text-[11px] text-slate-500">Loading diff...</span>
+            </div>
+          ) : (
+            <div className="p-2">
+              <DiffViewer
+                diff={diffText}
+                filePath={selectedFile}
+                workspaceId={workspace.id}
+                comments={fileComments}
+                onCommentCreate={handleCommentCreate}
+                onCommentDelete={handleCommentDelete}
+              />
+            </div>
+          )
+        ) : (
+          /* File list */
+          <div className="py-1">
+            {files.map((file, i) => {
+              const st = statusStyle[file.status] ?? statusStyle["?"];
+              const fileCommentCount = comments.filter(
+                (c) => c.file_path === file.path
+              ).length;
+              return (
+                <button
+                  key={i}
+                  onClick={() => setSelectedFile(file.path)}
+                  className="flex items-center gap-2 px-3 py-1.5 w-full text-left hover:bg-[#1a1d27] transition-colors"
+                >
+                  <span
+                    className={`w-4 text-center text-[10px] font-bold ${st.color}`}
+                  >
+                    {st.label}
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-mono truncate flex-1">
+                    {file.path}
+                  </span>
+                  {fileCommentCount > 0 && (
+                    <span className="rounded-full bg-amber-500/20 px-1.5 text-[9px] font-semibold text-amber-400">
+                      {fileCommentCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1315,120 +1533,7 @@ function WorkspaceRightPanel({
         {activeTab === "files" ? (
           <FileTreePanel workspace={workspace} />
         ) : activeTab === "changes" ? (
-          <div className="p-3">
-            {/* Workspace info */}
-            <div className="mb-3 pb-3 border-b border-[#1e2231]">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-[11px] font-medium text-slate-300">
-                  {workspace.name}
-                </span>
-                <StatusBadge status={workspace.status} />
-              </div>
-              <div className="text-[10px] text-slate-500 font-mono truncate">
-                {workspace.branch}
-              </div>
-              {workspace.pr_number && (
-                <div className="mt-1">
-                  {workspace.pr_url ? (
-                    <a
-                      href={workspace.pr_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[10px] text-amber-400 hover:text-amber-300 transition-colors"
-                    >
-                      PR #{workspace.pr_number}
-                    </a>
-                  ) : (
-                    <span className="text-[10px] text-slate-400">
-                      PR #{workspace.pr_number}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Git changes */}
-            <div className="flex flex-col gap-1">
-              <div className="text-[10px] font-medium uppercase tracking-wider text-slate-500 mb-1">
-                Working Tree
-              </div>
-              {gitLoading ? (
-                <div className="flex items-center gap-2 py-2">
-                  <div className="h-3 w-3 animate-spin rounded-full border border-amber-500 border-t-transparent" />
-                  <span className="text-[11px] text-slate-500">
-                    Checking...
-                  </span>
-                </div>
-              ) : gitStatus ? (
-                changedCount === 0 ? (
-                  <div className="rounded-md bg-emerald-500/5 border border-emerald-500/10 px-3 py-2">
-                    <span className="text-[11px] text-emerald-400">
-                      Clean -- no changes
-                    </span>
-                  </div>
-                ) : (
-                  <div className="rounded-md bg-amber-500/5 border border-amber-500/10 px-3 py-2">
-                    <span className="text-[11px] text-amber-400">
-                      {changedCount} changed file
-                      {changedCount !== 1 ? "s" : ""}
-                    </span>
-                    <p className="text-[10px] text-slate-600 mt-1">
-                      Run <span className="font-mono">git status</span> in the
-                      terminal for details
-                    </p>
-                  </div>
-                )
-              ) : (
-                <div className="rounded-md bg-slate-500/5 border border-[#1e2231] px-3 py-2">
-                  <span className="text-[11px] text-slate-500">
-                    Unable to check git status
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Create PR button (when no PR exists) */}
-            {!workspace.pr_number && (
-              <div className="mt-3 pt-3 border-t border-[#1e2231]">
-                <button
-                  onClick={onShowCreatePr}
-                  className="w-full rounded-lg bg-amber-500 px-3 py-2 text-[11px] font-semibold text-black transition-colors hover:bg-amber-400"
-                >
-                  Create Pull Request
-                </button>
-              </div>
-            )}
-
-            {/* Repo path */}
-            <div className="mt-3 pt-3 border-t border-[#1e2231]">
-              <div className="text-[10px] font-medium uppercase tracking-wider text-slate-500 mb-1">
-                Repository
-              </div>
-              <div className="text-[10px] text-slate-400 font-mono break-all">
-                {workspace.repo_path}
-              </div>
-            </div>
-
-            {/* Timestamps */}
-            <div className="mt-3 pt-3 border-t border-[#1e2231] flex gap-4">
-              <div>
-                <div className="text-[9px] font-medium uppercase tracking-wider text-slate-600">
-                  Created
-                </div>
-                <div className="text-[10px] text-slate-500">
-                  {formatRelativeTime(workspace.created_at)}
-                </div>
-              </div>
-              <div>
-                <div className="text-[9px] font-medium uppercase tracking-wider text-slate-600">
-                  Updated
-                </div>
-                <div className="text-[10px] text-slate-500">
-                  {formatRelativeTime(workspace.updated_at)}
-                </div>
-              </div>
-            </div>
-          </div>
+          <ChangesPanel workspace={workspace} />
         ) : activeTab === "checks" ? (
           <ChecksPanel workspace={workspace} />
         ) : activeTab === "pr" ? (

@@ -3,6 +3,7 @@ pub mod agents;
 pub mod chat;
 pub mod chat_tabs;
 pub mod coordination;
+pub mod diff_comments;
 pub mod files;
 pub mod git;
 pub mod github_ops;

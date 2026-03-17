@@ -294,4 +294,25 @@ CREATE TABLE IF NOT EXISTS chat_tabs (
     created_at    TEXT NOT NULL,
     updated_at    TEXT NOT NULL
 );
+
+-- ================================================================
+-- Diff Comments
+-- ================================================================
+
+CREATE TABLE IF NOT EXISTS diff_comments (
+    id                 TEXT PRIMARY KEY,
+    workspace_id       TEXT NOT NULL,
+    file_path          TEXT NOT NULL,
+    start_line         INTEGER NOT NULL,
+    end_line           INTEGER NOT NULL,
+    content            TEXT NOT NULL,
+    status             TEXT NOT NULL DEFAULT 'draft',
+    github_comment_id  TEXT,
+    author             TEXT NOT NULL DEFAULT 'local',
+    created_at         TEXT NOT NULL,
+    updated_at         TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_diff_comments_workspace
+    ON diff_comments(workspace_id);
 "#;

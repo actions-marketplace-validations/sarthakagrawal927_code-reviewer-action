@@ -30,18 +30,36 @@ pub fn start_watcher(app_handle: AppHandle) -> Result<RecommendedWatcher, String
         move |res| {
             let _ = tx.send(res);
         },
-        Config::default().with_poll_interval(Duration::from_secs(5)),
+        Config::default().with_poll_interval(Duration::from_secs(10)),
     )
     .map_err(|e| format!("Failed to create file watcher: {e}"))?;
 
+    // Watch each project subdirectory non-recursively (one level deep)
+    // instead of recursively watching the entire projects tree. The watcher
+    // only needs to detect new/modified JSONL files at the project level.
     for watch_dir in &watch_dirs {
-        if watch_dir.exists() {
-            match watcher.watch(watch_dir, RecursiveMode::Recursive) {
-                Ok(_) => log::info!("Watching: {}", watch_dir.display()),
-                Err(e) => log::warn!("Failed to watch {}: {e}", watch_dir.display()),
-            }
-        } else {
+        if !watch_dir.exists() {
             log::warn!("Watch target does not exist yet: {}", watch_dir.display());
+            continue;
+        }
+
+        // Watch the top-level projects dir itself (non-recursive) to detect new project dirs
+        match watcher.watch(watch_dir, RecursiveMode::NonRecursive) {
+            Ok(_) => log::info!("Watching (non-recursive): {}", watch_dir.display()),
+            Err(e) => log::warn!("Failed to watch {}: {e}", watch_dir.display()),
+        }
+
+        // Watch each immediate project subdirectory non-recursively for JSONL files
+        if let Ok(entries) = std::fs::read_dir(watch_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    match watcher.watch(&path, RecursiveMode::NonRecursive) {
+                        Ok(_) => log::info!("Watching project dir: {}", path.display()),
+                        Err(e) => log::warn!("Failed to watch {}: {e}", path.display()),
+                    }
+                }
+            }
         }
     }
 

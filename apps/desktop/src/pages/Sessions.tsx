@@ -52,6 +52,9 @@ export default function Sessions() {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
+  const [hasMoreSessions, setHasMoreSessions] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sessionOffsetRef = useRef(0);
 
   // Live session detection via running processes (ps aux)
   const [liveSessionIds, setLiveSessionIds] = useState<Set<string>>(new Set());
@@ -155,6 +158,8 @@ export default function Sessions() {
 
   // ─── Load sessions ──────────────────────────────────────────────────────
 
+  const SESSIONS_PAGE_SIZE = 100;
+
   const loadSessions = useCallback(async () => {
     if (fetchingRef.current) return;
     fetchingRef.current = true;
@@ -162,8 +167,10 @@ export default function Sessions() {
     if (sessions.length === 0) setSessionsLoading(true);
     setSessionsError(null);
     try {
-      const result = await listSessions(undefined, undefined, 10000, 0);
+      const result = await listSessions(undefined, undefined, SESSIONS_PAGE_SIZE, 0);
       setSessions(result);
+      sessionOffsetRef.current = result.length;
+      setHasMoreSessions(result.length >= SESSIONS_PAGE_SIZE);
 
       // Extract unique project IDs for the filter
       const projectMap = new Map<string, string>();
@@ -192,6 +199,23 @@ export default function Sessions() {
       fetchingRef.current = false;
     }
   }, []);
+
+  const loadMoreSessions = useCallback(async () => {
+    if (fetchingRef.current || !hasMoreSessions) return;
+    fetchingRef.current = true;
+    setLoadingMore(true);
+    try {
+      const result = await listSessions(undefined, undefined, SESSIONS_PAGE_SIZE, sessionOffsetRef.current);
+      setSessions((prev) => [...prev, ...result]);
+      sessionOffsetRef.current += result.length;
+      setHasMoreSessions(result.length >= SESSIONS_PAGE_SIZE);
+    } catch (err) {
+      console.error("Failed to load more sessions:", err);
+    } finally {
+      setLoadingMore(false);
+      fetchingRef.current = false;
+    }
+  }, [hasMoreSessions]);
 
   // Load last index time and cost preference
   const loadMeta = useCallback(async () => {
@@ -911,6 +935,15 @@ export default function Sessions() {
                 <p className="py-2 text-center text-[10px] text-slate-600">
                   {visibleCount} of {filtered.length}
                 </p>
+              )}
+              {hasMoreSessions && (
+                <button
+                  onClick={loadMoreSessions}
+                  disabled={loadingMore}
+                  className="w-full py-2 text-center text-[11px] text-slate-500 hover:text-slate-300 transition-colors disabled:opacity-50"
+                >
+                  {loadingMore ? "Loading..." : "Load more sessions"}
+                </button>
               )}
             </div>
           )}

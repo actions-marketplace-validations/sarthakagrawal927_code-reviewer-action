@@ -12,6 +12,10 @@ import {
 } from "@/lib/tauri-ipc";
 import type { ChatTab } from "@/lib/tauri-ipc";
 import { useChatStream } from "@/hooks/use-chat-stream";
+import type { RateLimitEventInfo } from "@/hooks/use-chat-stream";
+import ContextMeter from "@/components/context-meter";
+import CapacityIndicator from "@/components/capacity-indicator";
+import type { RateLimitInfo } from "@/components/capacity-indicator";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -22,14 +26,30 @@ interface ChatMessage {
 
 type ChatState = "idle" | "waiting" | "streaming";
 
+/** Maximum messages kept in memory per tab. Older messages are discarded. */
+const MAX_MESSAGES_IN_MEMORY = 200;
+
 interface TabState {
   messages: ChatMessage[];
+  /** Total message count including truncated older messages. */
+  totalMessageCount: number;
   sessionId: string | undefined;
   projectPath: string | undefined;
   model: string;
   chatState: ChatState;
   input: string;
   loadingHistory: boolean;
+}
+
+/** Enforce the message window limit, keeping the most recent messages. */
+function windowMessages(messages: ChatMessage[], totalCount: number): { messages: ChatMessage[]; totalMessageCount: number } {
+  if (messages.length <= MAX_MESSAGES_IN_MEMORY) {
+    return { messages, totalMessageCount: Math.max(totalCount, messages.length) };
+  }
+  return {
+    messages: messages.slice(-MAX_MESSAGES_IN_MEMORY),
+    totalMessageCount: Math.max(totalCount, messages.length),
+  };
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -49,6 +69,7 @@ function convertSessionMessages(
 function makeDefaultTabState(projectPath?: string, model?: string): TabState {
   return {
     messages: [],
+    totalMessageCount: 0,
     sessionId: undefined,
     projectPath,
     model: model ?? "sonnet",
@@ -156,6 +177,9 @@ export default function Chat() {
   const [tabStates, setTabStates] = useState<Record<string, TabState>>({});
   const [tabsLoaded, setTabsLoaded] = useState(false);
 
+  // Rate limit info from stream events
+  const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo | null>(null);
+
   // Track which tab initiated the current stream so events route correctly
   const streamingTabIdRef = useRef<string | null>(null);
   // Track which sessions have already been loaded to avoid re-fetching
@@ -192,19 +216,24 @@ export default function Chat() {
 
   // ─── Stream handler ─────────────────────────────────────────────────────
 
-  const { sending, streamingText } = useChatStream({
+  const { sending, streamingText, stats } = useChatStream({
     onAssistantDone(text, newSessionId) {
       const targetTabId = streamingTabIdRef.current;
       if (!targetTabId) return;
 
-      updateTabState(targetTabId, (prev) => ({
-        ...prev,
-        chatState: "idle",
-        messages: text.trim()
+      updateTabState(targetTabId, (prev) => {
+        const newMessages = text.trim()
           ? [...prev.messages, { role: "assistant" as const, content: text }]
-          : prev.messages,
-        sessionId: newSessionId ?? prev.sessionId,
-      }));
+          : prev.messages;
+        const { messages, totalMessageCount } = windowMessages(newMessages, prev.totalMessageCount + (text.trim() ? 1 : 0));
+        return {
+          ...prev,
+          chatState: "idle",
+          messages,
+          totalMessageCount,
+          sessionId: newSessionId ?? prev.sessionId,
+        };
+      });
 
       // Persist the session_id to the tab in the database
       if (newSessionId) {
@@ -223,11 +252,11 @@ export default function Chat() {
     onSystemMessage(text) {
       const targetTabId = streamingTabIdRef.current ?? activeTabId;
       if (!targetTabId) return;
-      updateTabState(targetTabId, (prev) => ({
-        ...prev,
-        chatState: "idle",
-        messages: [...prev.messages, { role: "system" as const, content: text }],
-      }));
+      updateTabState(targetTabId, (prev) => {
+        const newMessages = [...prev.messages, { role: "system" as const, content: text }];
+        const { messages, totalMessageCount } = windowMessages(newMessages, prev.totalMessageCount + 1);
+        return { ...prev, chatState: "idle", messages, totalMessageCount };
+      });
       streamingTabIdRef.current = null;
     },
     onTextUpdate() {
@@ -236,6 +265,9 @@ export default function Chat() {
       updateTabState(targetTabId, (prev) =>
         prev.chatState !== "streaming" ? { ...prev, chatState: "streaming" } : prev
       );
+    },
+    onRateLimitUpdate(info: RateLimitEventInfo) {
+      setRateLimitInfo(info);
     },
   });
 
@@ -363,12 +395,17 @@ export default function Chat() {
       try {
         const { session, messages: msgs } = await getSession(sessionToLoad);
         if (cancelled) return;
-        updateTabState(activeTabId, (prev) => ({
-          ...prev,
-          messages: convertSessionMessages(msgs),
-          projectPath: prev.projectPath ?? session.cwd ?? undefined,
-          loadingHistory: false,
-        }));
+        updateTabState(activeTabId, (prev) => {
+          const allMessages = convertSessionMessages(msgs);
+          const { messages, totalMessageCount } = windowMessages(allMessages, allMessages.length);
+          return {
+            ...prev,
+            messages,
+            totalMessageCount,
+            projectPath: prev.projectPath ?? session.cwd ?? undefined,
+            loadingHistory: false,
+          };
+        });
       } catch (err) {
         console.error("Failed to load session history:", err);
         if (!cancelled) {
@@ -518,12 +555,11 @@ export default function Chat() {
       );
     }
 
-    updateActiveState((prev) => ({
-      ...prev,
-      input: "",
-      messages: [...prev.messages, { role: "user" as const, content: msg }],
-      chatState: "waiting",
-    }));
+    updateActiveState((prev) => {
+      const newMessages = [...prev.messages, { role: "user" as const, content: msg }];
+      const { messages, totalMessageCount } = windowMessages(newMessages, prev.totalMessageCount + 1);
+      return { ...prev, input: "", messages, totalMessageCount, chatState: "waiting" };
+    });
 
     // Track which tab is streaming
     streamingTabIdRef.current = activeTabId;
@@ -537,17 +573,17 @@ export default function Chat() {
       );
     } catch (err) {
       streamingTabIdRef.current = null;
-      updateActiveState((prev) => ({
-        ...prev,
-        chatState: "idle",
-        messages: [
+      updateActiveState((prev) => {
+        const newMessages = [
           ...prev.messages,
           {
             role: "system" as const,
             content: `Error: ${err instanceof Error ? err.message : String(err)}`,
           },
-        ],
-      }));
+        ];
+        const { messages, totalMessageCount } = windowMessages(newMessages, prev.totalMessageCount + 1);
+        return { ...prev, chatState: "idle", messages, totalMessageCount };
+      });
     }
   }, [activeTabId, activeState, tabs, updateActiveState]);
 
@@ -674,6 +710,13 @@ export default function Chat() {
           </div>
         ) : (
           <>
+            {(activeState?.totalMessageCount ?? 0) > messages.length && (
+              <div className="text-center py-2 mb-2">
+                <span className="text-[11px] text-slate-600">
+                  {(activeState?.totalMessageCount ?? 0) - messages.length} earlier messages not shown
+                </span>
+              </div>
+            )}
             {messages.map((msg, i) =>
               msg.role === "user" ? (
                 <UserBubble key={i} content={msg.content} />
@@ -727,6 +770,14 @@ export default function Chat() {
           >
             {isBusy ? "..." : "Send"}
           </button>
+        </div>
+        {/* Context meter + Capacity indicator */}
+        <div className="flex items-center justify-between mt-1.5">
+          <CapacityIndicator rateLimitInfo={rateLimitInfo} />
+          <ContextMeter
+            inputTokens={stats.inputTokens}
+            outputTokens={stats.outputTokens}
+          />
         </div>
       </div>
     </div>

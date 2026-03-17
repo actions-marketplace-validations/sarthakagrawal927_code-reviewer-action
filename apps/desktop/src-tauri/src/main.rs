@@ -98,7 +98,7 @@ fn main() {
                 })
                 .expect("failed to spawn initial-index thread");
 
-            // ── Periodic re-index (every 5 minutes) ────────────────────
+            // ── Periodic re-index (every 15 minutes) ────────────────────
             let periodic_data_dir = app
                 .path()
                 .app_data_dir()
@@ -124,8 +124,8 @@ fn main() {
                                 log::error!("Periodic re-index DB init failed: {e}");
                             }
                         }
-                        // Sleep 5 minutes between runs
-                        std::thread::sleep(std::time::Duration::from_secs(300));
+                        // Sleep 15 minutes between runs
+                        std::thread::sleep(std::time::Duration::from_secs(900));
                     }
                 })
                 .expect("failed to spawn periodic-index thread");
@@ -168,6 +168,7 @@ fn main() {
             commands::git::list_pull_requests,
             commands::git::check_github_auth,
             commands::git::sync_github_token,
+            commands::git::get_git_changed_files,
             // GitHub PR & CI operations
             commands::github_ops::create_pull_request,
             commands::github_ops::list_pull_requests_for_repo,
@@ -233,6 +234,12 @@ fn main() {
             commands::files::list_directory_tree,
             commands::files::read_file_preview,
             commands::files::open_in_app,
+            // Diff Comments
+            commands::diff_comments::get_file_diff,
+            commands::diff_comments::list_diff_comments,
+            commands::diff_comments::create_diff_comment,
+            commands::diff_comments::update_diff_comment,
+            commands::diff_comments::delete_diff_comment,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

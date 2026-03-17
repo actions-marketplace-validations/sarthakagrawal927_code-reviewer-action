@@ -1,5 +1,8 @@
 use crate::coordination::{self, doc, schema::Finding, DocCache};
+use crate::db::queries;
+use crate::DbState;
 use serde_json::{json, Value};
+use std::time::Instant;
 use tauri::{Emitter, State};
 
 /// Helper: load a doc from cache or disk, run an operation, save back, emit event.
@@ -14,17 +17,21 @@ where
     F: FnOnce(&mut automerge::AutoCommit) -> Result<R, String>,
 {
     let mut docs = cache.lock().map_err(|e| format!("Lock error: {e}"))?;
+    coordination::cleanup_cache(&mut docs);
     let path = coordination::doc_path(repo_path, review_id);
 
     // Load from cache, or from disk, or error
     if !docs.contains_key(review_id) {
         let loaded = doc::load_from_disk(&path)?;
-        docs.insert(review_id.to_string(), loaded);
+        docs.insert(review_id.to_string(), (loaded, Instant::now()));
     }
 
-    let am_doc = docs
+    let (am_doc, last_access) = docs
         .get_mut(review_id)
         .ok_or_else(|| "Doc not in cache after load".to_string())?;
+
+    // Update last access time
+    *last_access = Instant::now();
 
     let result = f(am_doc)?;
 
@@ -62,13 +69,15 @@ pub async fn create_review_doc(
     // Cache it
     {
         let mut docs = cache.lock().map_err(|e| format!("Lock error: {e}"))?;
-        docs.insert(review_id.clone(), am_doc);
+        coordination::cleanup_cache(&mut docs);
+        docs.insert(review_id.clone(), (am_doc, Instant::now()));
     }
 
     // Read state for the event — need to re-acquire lock
     let state = {
-        let docs = cache.lock().map_err(|e| format!("Lock error: {e}"))?;
-        if let Some(d) = docs.get(&review_id) {
+        let mut docs = cache.lock().map_err(|e| format!("Lock error: {e}"))?;
+        if let Some((d, last_access)) = docs.get_mut(&review_id) {
+            *last_access = Instant::now();
             doc::get_state(d)
         } else {
             return Err("Doc disappeared from cache".to_string());
@@ -217,30 +226,182 @@ pub async fn update_agent_status(
     Ok(json!({ "ok": true }))
 }
 
-/// Finalize a coordinated review — returns findings count and cleans up cache.
+/// Finalize a coordinated review — merge, deduplicate, persist to SQLite,
+/// archive the Automerge doc, and return the full merged result.
 #[tauri::command]
 pub async fn finalize_review(
     app: tauri::AppHandle,
+    db: State<'_, DbState>,
     cache: State<'_, DocCache>,
     review_id: String,
     repo_path: String,
 ) -> Result<Value, String> {
-    let findings_count = with_doc(
-        &cache,
-        &review_id,
-        &repo_path,
-        Some(&app),
-        |am_doc| {
-            let state = doc::get_state(am_doc);
-            Ok(state.findings.len())
-        },
-    )?;
+    use crate::coordination::merge;
 
-    // Remove from cache (doc is already saved to disk)
+    // 1. Load the CRDT doc and extract state
+    let state = with_doc(&cache, &review_id, &repo_path, Some(&app), |am_doc| {
+        Ok(doc::get_state(am_doc))
+    })?;
+
+    // 2. Collect agent IDs
+    let agents: Vec<String> = state.agent_status.keys().cloned().collect();
+
+    // 3. Build the merged review (deduplicate + sort + summarize)
+    let merged = merge::build_merged_review(
+        &state.findings,
+        state.files_claimed.len(),
+        agents,
+        &state.meta.created_at,
+    );
+
+    // 4. Persist to SQLite — create a local_review + local_review_findings
+    {
+        let conn = db.0.lock().map_err(|e| format!("DB lock error: {e}"))?;
+
+        // Create the review record
+        let agents_label = merged.agents_involved.join(", ");
+        let source_label = format!("Coordinated review ({})", agents_label);
+
+        let db_review_id = queries::create_local_review(
+            &conn,
+            &queries::LocalReviewInput {
+                review_type: Some("coordinated".to_string()),
+                source_label: Some(source_label),
+                repo_path: Some(repo_path.clone()),
+                repo_full_name: None,
+                pr_number: None,
+                agent_used: Some(
+                    merged
+                        .agents_involved
+                        .first()
+                        .cloned()
+                        .unwrap_or_else(|| "multi-agent".to_string()),
+                ),
+                status: Some("completed".to_string()),
+            },
+        )
+        .map_err(|e| format!("Failed to create review record: {e}"))?;
+
+        // Insert each non-duplicate finding
+        let unique_findings: Vec<&merge::MergedFinding> =
+            merged.findings.iter().filter(|f| !f.is_duplicate).collect();
+
+        for mf in &unique_findings {
+            let title = mf.finding.message.chars().take(120).collect::<String>();
+            let sources_note = if mf.sources.len() > 1 {
+                format!("\n\nFound by: {}", mf.sources.join(", "))
+            } else {
+                String::new()
+            };
+
+            queries::insert_review_finding(
+                &conn,
+                &queries::LocalReviewFindingInput {
+                    review_id: db_review_id.clone(),
+                    severity: mf.finding.severity.clone(),
+                    title,
+                    summary: format!("{}{sources_note}", mf.finding.message),
+                    suggestion: None,
+                    file_path: Some(mf.finding.file.clone()),
+                    line: if mf.finding.line_start > 0 {
+                        Some(mf.finding.line_start as i64)
+                    } else {
+                        None
+                    },
+                    confidence: None,
+                    fingerprint: Some(mf.finding.id.clone()),
+                },
+            )
+            .map_err(|e| format!("Failed to insert finding: {e}"))?;
+        }
+
+        // Update the review with summary and counts
+        queries::update_local_review(
+            &conn,
+            &db_review_id,
+            &queries::LocalReviewUpdate {
+                status: Some("completed".to_string()),
+                findings_count: Some(unique_findings.len() as i64),
+                summary_markdown: Some(merged.summary.clone()),
+                completed_at: Some(chrono::Utc::now().to_rfc3339()),
+                ..Default::default()
+            },
+        )
+        .map_err(|e| format!("Failed to update review: {e}"))?;
+
+        // Log activity
+        queries::log_activity(
+            &conn,
+            &queries::ActivityInput {
+                agent_id: None,
+                event_type: Some("coordinated_review_finalized".to_string()),
+                summary: Some(format!(
+                    "Coordinated review finalized: {} unique findings ({} duplicates removed) across {} files by {} agents",
+                    merged.unique_count,
+                    merged.duplicate_count,
+                    merged.total_files_reviewed,
+                    merged.agents_involved.len(),
+                )),
+                metadata: Some(
+                    json!({
+                        "review_id": db_review_id,
+                        "crdt_review_id": review_id,
+                        "unique_findings": merged.unique_count,
+                        "duplicate_findings": merged.duplicate_count,
+                        "agents": merged.agents_involved,
+                        "duration_seconds": merged.duration_seconds,
+                    })
+                    .to_string(),
+                ),
+            },
+        )
+        .map_err(|e| format!("Failed to log activity: {e}"))?;
+    }
+
+    // 5. Archive the Automerge doc (rename to .automerge.done)
+    let doc_file = coordination::doc_path(&repo_path, &review_id);
+    let archive_file = doc_file.with_extension("automerge.done");
+    if doc_file.exists() {
+        std::fs::rename(&doc_file, &archive_file)
+            .map_err(|e| format!("Failed to archive doc: {e}"))?;
+    }
+
+    // 6. Remove from cache
     {
         let mut docs = cache.lock().map_err(|e| format!("Lock error: {e}"))?;
         docs.remove(&review_id);
     }
 
-    Ok(json!({ "findings_count": findings_count }))
+    // 7. Serialize the merged result for the frontend
+    let merged_findings_json: Vec<Value> = merged
+        .findings
+        .iter()
+        .map(|mf| {
+            json!({
+                "finding": {
+                    "id": mf.finding.id,
+                    "file": mf.finding.file,
+                    "line_start": mf.finding.line_start,
+                    "line_end": mf.finding.line_end,
+                    "severity": mf.finding.severity,
+                    "message": mf.finding.message,
+                    "agent_id": mf.finding.agent_id,
+                    "timestamp": mf.finding.timestamp,
+                },
+                "sources": mf.sources,
+                "is_duplicate": mf.is_duplicate,
+            })
+        })
+        .collect();
+
+    Ok(json!({
+        "review_id": review_id,
+        "findings": merged_findings_json,
+        "summary": merged.summary,
+        "total_files_reviewed": merged.total_files_reviewed,
+        "agents_involved": merged.agents_involved,
+        "duration_seconds": merged.duration_seconds,
+        "unique_count": merged.unique_count,
+        "duplicate_count": merged.duplicate_count,
+    }))
 }

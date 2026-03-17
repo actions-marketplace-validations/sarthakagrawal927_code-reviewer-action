@@ -156,16 +156,19 @@ fn set_initial_agent_status(
     app: &tauri::AppHandle,
 ) -> Result<(), String> {
     let mut docs = cache.lock().map_err(|e| format!("Lock: {e}"))?;
+    coordination::cleanup_cache(&mut docs);
     let path = coordination::doc_path(repo_path, review_id);
 
     if !docs.contains_key(review_id) {
         let loaded = doc::load_from_disk(&path)?;
-        docs.insert(review_id.to_string(), loaded);
+        docs.insert(review_id.to_string(), (loaded, std::time::Instant::now()));
     }
 
-    let am_doc = docs
+    let (am_doc, last_access) = docs
         .get_mut(review_id)
         .ok_or("Doc not in cache")?;
+
+    *last_access = std::time::Instant::now();
 
     let status = schema::AgentStatus {
         status: "reviewing".to_string(),
@@ -211,15 +214,17 @@ fn monitor_agent_completion(
         if !alive {
             // Agent exited — mark as done
             if let Ok(mut docs) = cache.lock() {
+                coordination::cleanup_cache(&mut docs);
                 let path = coordination::doc_path(repo_path, review_id);
 
                 if !docs.contains_key(review_id) {
                     if let Ok(loaded) = doc::load_from_disk(&path) {
-                        docs.insert(review_id.to_string(), loaded);
+                        docs.insert(review_id.to_string(), (loaded, std::time::Instant::now()));
                     }
                 }
 
-                if let Some(am_doc) = docs.get_mut(review_id) {
+                if let Some((am_doc, last_access)) = docs.get_mut(review_id) {
+                    *last_access = std::time::Instant::now();
                     let status = schema::AgentStatus {
                         status: "done".to_string(),
                         current_file: None,
@@ -260,16 +265,19 @@ pub fn apply_coordination_event(
     app: &tauri::AppHandle,
 ) -> Result<(), String> {
     let mut docs = cache.lock().map_err(|e| format!("Lock: {e}"))?;
+    coordination::cleanup_cache(&mut docs);
     let path = coordination::doc_path(repo_path, review_id);
 
     if !docs.contains_key(review_id) {
         let loaded = doc::load_from_disk(&path)?;
-        docs.insert(review_id.to_string(), loaded);
+        docs.insert(review_id.to_string(), (loaded, std::time::Instant::now()));
     }
 
-    let am_doc = docs
+    let (am_doc, last_access) = docs
         .get_mut(review_id)
         .ok_or("Doc not in cache")?;
+
+    *last_access = std::time::Instant::now();
 
     match event {
         parser::CoordinationEvent::FileStarted { file } => {
