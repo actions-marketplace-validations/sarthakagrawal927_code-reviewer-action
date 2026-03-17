@@ -67,12 +67,6 @@
     -webkit-app-region: no-drag;
   }
 
-  .glass {
-    background: rgba(19, 21, 28, 0.8);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-  }
-
   .fade-in {
     animation: fadeIn 0.2s ease-out;
   }

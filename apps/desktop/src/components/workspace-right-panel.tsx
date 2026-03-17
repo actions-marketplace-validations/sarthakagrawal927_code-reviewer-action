@@ -695,7 +695,7 @@ export default function WorkspaceRightPanel({
         <div className="ml-auto pr-2">
           <button
             onClick={onNavigateReview}
-            className="rounded border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-medium text-indigo-400 hover:bg-indigo-500/20 transition-colors"
+            className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400 hover:bg-amber-500/20 transition-colors"
           >
             Review
           </button>
