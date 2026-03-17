@@ -4,6 +4,8 @@
 //! heuristics to detect when an agent starts reviewing a file, reports a finding,
 //! or finishes its work, and emits structured `CoordinationEvent`s.
 
+#![allow(dead_code)]
+
 use serde::{Deserialize, Serialize};
 
 /// Events parsed from agent stdout that drive CRDT state updates.

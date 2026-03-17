@@ -1,7 +1,7 @@
 use crate::adapters::claude_code::ClaudeCodeAdapter;
 use crate::adapters::codex::CodexAdapter;
 use crate::adapters::AgentAdapter;
-use crate::coordination::{self, doc, parser, schema, DocCache};
+use crate::coordination::{self, doc, schema, DocCache};
 use crate::db::queries::{self, AgentProcessRow, ActivityInput};
 use crate::DbState;
 use serde_json::{json, Value};
@@ -248,120 +248,6 @@ fn monitor_agent_completion(
                 review_id
             );
             break;
-        }
-    }
-}
-
-/// Apply a parsed coordination event to the CRDT document.
-///
-/// This function is public so it can be called from stdout piping code
-/// (either in this module or in the adapters).
-pub fn apply_coordination_event(
-    cache: &DocCache,
-    review_id: &str,
-    repo_path: &str,
-    agent_id: &str,
-    event: &parser::CoordinationEvent,
-    app: &tauri::AppHandle,
-) -> Result<(), String> {
-    let mut docs = cache.lock().map_err(|e| format!("Lock: {e}"))?;
-    coordination::cleanup_cache(&mut docs);
-    let path = coordination::doc_path(repo_path, review_id);
-
-    if !docs.contains_key(review_id) {
-        let loaded = doc::load_from_disk(&path)?;
-        docs.insert(review_id.to_string(), (loaded, std::time::Instant::now()));
-    }
-
-    let (am_doc, last_access) = docs
-        .get_mut(review_id)
-        .ok_or("Doc not in cache")?;
-
-    *last_access = std::time::Instant::now();
-
-    match event {
-        parser::CoordinationEvent::FileStarted { file } => {
-            let _ = doc::claim_file(am_doc, agent_id, file);
-            doc::update_agent_status(
-                am_doc,
-                agent_id,
-                &schema::AgentStatus {
-                    status: "reviewing".to_string(),
-                    current_file: Some(file.clone()),
-                    progress: 0.0, // We don't know progress from a FileStarted event
-                },
-            );
-        }
-        parser::CoordinationEvent::FindingReported {
-            file,
-            line_start,
-            line_end,
-            severity,
-            message,
-        } => {
-            let finding = schema::Finding {
-                id: uuid::Uuid::new_v4().to_string(),
-                file: file.clone(),
-                line_start: *line_start,
-                line_end: *line_end,
-                severity: severity.clone(),
-                message: message.clone(),
-                agent_id: agent_id.to_string(),
-                timestamp: chrono::Utc::now().to_rfc3339(),
-            };
-            doc::add_finding(am_doc, &finding);
-        }
-        parser::CoordinationEvent::StatusUpdate { status, progress } => {
-            doc::update_agent_status(
-                am_doc,
-                agent_id,
-                &schema::AgentStatus {
-                    status: status.clone(),
-                    current_file: None,
-                    progress: *progress,
-                },
-            );
-        }
-        parser::CoordinationEvent::Completed => {
-            doc::update_agent_status(
-                am_doc,
-                agent_id,
-                &schema::AgentStatus {
-                    status: "done".to_string(),
-                    current_file: None,
-                    progress: 1.0,
-                },
-            );
-        }
-    }
-
-    doc::save_to_disk(am_doc, &path)?;
-
-    let state = doc::get_state(am_doc);
-    let _ = app.emit(
-        "review-state-changed",
-        serde_json::to_value(&state).unwrap_or(json!({})),
-    );
-
-    Ok(())
-}
-
-/// Process a line of agent stdout through the coordination parser.
-///
-/// Public API for use by adapter stdout reading code. If the line produces
-/// a coordination event, it is applied to the CRDT document.
-pub fn process_agent_stdout_line(
-    cache: &DocCache,
-    review_id: &str,
-    repo_path: &str,
-    agent_id: &str,
-    line: &str,
-    app: &tauri::AppHandle,
-) {
-    if let Some(event) = parser::parse_line(line) {
-        if let Err(e) = apply_coordination_event(cache, review_id, repo_path, agent_id, &event, app)
-        {
-            log::error!("Coordination event error: {e}");
         }
     }
 }

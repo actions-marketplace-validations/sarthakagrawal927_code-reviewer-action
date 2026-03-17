@@ -6,16 +6,6 @@ use serde::{Deserialize, Serialize};
 // ─────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProjectRow {
-    pub id: String,
-    pub display_name: String,
-    pub dir_path: String,
-    pub session_count: i64,
-    pub last_activity: Option<String>,
-    pub created_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionRow {
     pub id: String,
     pub project_id: String,
@@ -326,25 +316,6 @@ pub fn get_project_id_by_dir(
 // ─────────────────────────────────────────────────────────────────
 // Projects
 // ─────────────────────────────────────────────────────────────────
-
-pub fn list_projects(conn: &Connection) -> Result<Vec<ProjectRow>, rusqlite::Error> {
-    let mut stmt = conn.prepare(
-        "SELECT id, display_name, dir_path, session_count, last_activity, created_at
-         FROM cc_projects
-         ORDER BY last_activity DESC NULLS LAST",
-    )?;
-    let rows = stmt.query_map([], |row| {
-        Ok(ProjectRow {
-            id: row.get(0)?,
-            display_name: row.get(1)?,
-            dir_path: row.get(2)?,
-            session_count: row.get(3)?,
-            last_activity: row.get(4)?,
-            created_at: row.get(5)?,
-        })
-    })?;
-    rows.collect()
-}
 
 pub fn upsert_project(conn: &Connection, p: &ProjectInput) -> Result<(), rusqlite::Error> {
     conn.execute(
@@ -1088,23 +1059,6 @@ pub fn get_cost_dashboard(conn: &Connection) -> Result<Vec<AgentCostSummary>, ru
     rows.collect()
 }
 
-pub fn log_agent_cost(
-    conn: &Connection,
-    agent_id: &str,
-    model: &str,
-    input_tokens: i64,
-    output_tokens: i64,
-    cost_usd: f64,
-) -> Result<(), rusqlite::Error> {
-    let id = uuid::Uuid::new_v4().to_string();
-    conn.execute(
-        "INSERT INTO agent_cost_log (id, agent_id, model, input_tokens, output_tokens, cost_usd)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        params![id, agent_id, model, input_tokens, output_tokens, cost_usd],
-    )?;
-    Ok(())
-}
-
 // ─────────────────────────────────────────────────────────────────
 // Agent Presets
 // ─────────────────────────────────────────────────────────────────
@@ -1543,27 +1497,6 @@ pub fn list_chat_tabs(conn: &Connection) -> Result<Vec<ChatTabRow>, rusqlite::Er
         })
     })?;
     rows.collect()
-}
-
-pub fn get_chat_tab(conn: &Connection, id: &str) -> Result<Option<ChatTabRow>, rusqlite::Error> {
-    conn.query_row(
-        "SELECT id, title, session_id, project_path, model, position, created_at, updated_at
-         FROM chat_tabs WHERE id = ?1",
-        params![id],
-        |row| {
-            Ok(ChatTabRow {
-                id: row.get(0)?,
-                title: row.get(1)?,
-                session_id: row.get(2)?,
-                project_path: row.get(3)?,
-                model: row.get(4)?,
-                position: row.get(5)?,
-                created_at: row.get(6)?,
-                updated_at: row.get(7)?,
-            })
-        },
-    )
-    .optional()
 }
 
 pub fn create_chat_tab(conn: &Connection, tab: &ChatTabRow) -> Result<(), rusqlite::Error> {

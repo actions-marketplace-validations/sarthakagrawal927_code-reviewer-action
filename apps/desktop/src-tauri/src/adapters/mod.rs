@@ -39,5 +39,6 @@ pub trait AgentAdapter: Send + Sync {
     async fn stop(&self, handle: &AgentHandle) -> Result<(), String>;
 
     /// Return true if the underlying process is still alive.
+    #[allow(dead_code)]
     async fn is_running(&self, handle: &AgentHandle) -> bool;
 }

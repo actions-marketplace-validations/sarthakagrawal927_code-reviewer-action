@@ -170,7 +170,7 @@ pub async fn check_account_usage(
         .or_else(|| if avg_week_cost > 0.0 { Some(avg_week_cost) } else { None })
         .or_else(|| if last_week_cost > 0.0 { Some(last_week_cost) } else { None });
 
-    let week_pct = baseline.map(|b| if b > 0.0 { (week_cost / b * 100.0) } else { 0.0 });
+    let week_pct = baseline.map(|b| if b > 0.0 { week_cost / b * 100.0  } else { 0.0 });
     let week_remaining = baseline.map(|b| (b - week_cost).max(0.0));
 
     // ── Expected pace: what % of the week has elapsed ───────────────────

@@ -838,7 +838,7 @@ fn parse_codex_session(
     let mut total_input: i64 = 0;
     let mut total_output: i64 = 0;
     let mut total_cache_read: i64 = 0;
-    let mut total_cache_creation: i64 = 0;
+    let total_cache_creation: i64 = 0;
     let mut first_message: Option<String> = None;
     let mut last_message: Option<String> = None;
     let mut new_messages: u64 = 0;

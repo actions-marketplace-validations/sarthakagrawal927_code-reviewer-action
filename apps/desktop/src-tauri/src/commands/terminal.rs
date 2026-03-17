@@ -7,7 +7,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
 /// Holds the master (write) side and child process for one terminal.
-struct PtyHandle {
+pub(crate) struct PtyHandle {
     master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
     child: Box<dyn portable_pty::Child + Send>,
@@ -16,7 +16,7 @@ struct PtyHandle {
 }
 
 /// Global map of active terminals, managed as Tauri state.
-pub struct TerminalState(pub Arc<Mutex<HashMap<String, PtyHandle>>>);
+pub struct TerminalState(pub(crate) Arc<Mutex<HashMap<String, PtyHandle>>>);
 
 /// Payload emitted to the frontend via the `terminal-output` event.
 #[derive(Clone, Serialize)]

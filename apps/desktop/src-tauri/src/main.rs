@@ -329,8 +329,6 @@ fn run_initial_index(app_data_dir: std::path::PathBuf) -> Result<String, String>
                 }
             }
 
-            let file_size = file_meta.as_ref().map(|m| m.len() as i64).unwrap_or(0);
-
             // Quick-parse first few lines for session metadata.
             let (session_id, meta) = quick_parse_session_meta(jsonl_path);
 
