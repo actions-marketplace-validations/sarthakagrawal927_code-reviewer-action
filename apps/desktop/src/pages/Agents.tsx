@@ -4,6 +4,21 @@ import KanbanBoard from "@/components/kanban-board";
 import ChatViewer from "@/components/chat-viewer";
 import DirectoryPicker from "@/components/directory-picker";
 import ReviewForm from "@/components/review-form";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   listAgents,
   launchAgent,
@@ -1090,69 +1105,82 @@ function CompactPersonaCard({
   const accentColor = COLOR_MAP[persona.color] || "#f59e0b";
 
   return (
-    <button
-      onClick={onClick}
-      className={`group relative w-full text-left rounded-lg border p-3 transition-colors ${
-        selected
-          ? "border-amber-500/30 bg-amber-500/5"
-          : "border-[#1e2231] bg-[#13151c] hover:border-[#2d3348]"
-      }`}
-      style={{ borderLeftColor: accentColor, borderLeftWidth: 2 }}
-    >
-      {/* Edit / Delete icons — visible on hover */}
-      <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        <span
-          role="button"
-          tabIndex={0}
-          onClick={(e) => { e.stopPropagation(); onEdit(); }}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onEdit(); } }}
-          className="rounded p-0.5 text-slate-500 hover:text-slate-300 hover:bg-[#1e2231] transition-colors cursor-pointer"
-          title="Edit persona"
-        >
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-          </svg>
-        </span>
-        <span
-          role="button"
-          tabIndex={0}
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onDelete(); } }}
-          className="rounded p-0.5 text-slate-500 hover:text-red-400 hover:bg-[#1e2231] transition-colors cursor-pointer"
-          title="Delete persona"
-        >
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-        </span>
-      </div>
+    <TooltipProvider delayDuration={400}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Card
+            className={`group relative w-full cursor-pointer p-3 transition-colors ${
+              selected
+                ? "border-amber-500/30 bg-amber-500/5"
+                : "bg-[#13151c] hover:border-[#2d3348]"
+            }`}
+            style={{ borderLeftColor: accentColor, borderLeftWidth: 2 }}
+            onClick={onClick}
+          >
+            {/* Edit / Delete icons — visible on hover */}
+            <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 text-slate-500 hover:text-slate-300"
+                onClick={(e) => { e.stopPropagation(); onEdit(); }}
+                title="Edit persona"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 text-slate-500 hover:text-red-400"
+                onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                title="Delete persona"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </Button>
+            </div>
 
-      <p className="text-[13px] font-medium text-slate-200 truncate pr-10">
-        {persona.name}
-      </p>
-      <p className="text-[11px] text-slate-500 truncate mt-0.5">
-        {persona.description ? persona.description.split("\\n")[0] : "No description"}
-      </p>
-      <div className="flex items-center gap-1.5 mt-1.5">
-        {isBusy ? (
-          <>
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-            <span className="text-[10px] text-amber-400 truncate">
-              {busyAgent.role
-                ? busyAgent.role.slice(0, 40) + (busyAgent.role.length > 40 ? ".." : "")
-                : "busy"}
-            </span>
-          </>
-        ) : (
-          <>
-            <span className="h-1.5 w-1.5 rounded-full bg-slate-600" />
-            <span className="text-[10px] text-slate-500">idle</span>
-          </>
+            <div className="flex items-center gap-2">
+              <span
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ backgroundColor: accentColor }}
+              />
+              <p className="text-[13px] font-medium text-slate-200 truncate pr-10">
+                {persona.name}
+              </p>
+            </div>
+            <p className="text-[11px] text-slate-500 truncate mt-0.5 ml-4">
+              {persona.description ? persona.description.split("\\n")[0] : "No description"}
+            </p>
+            <div className="flex items-center gap-1.5 mt-1.5 ml-4">
+              {isBusy ? (
+                <Badge variant="outline" className="h-5 border-amber-500/30 bg-amber-500/10 text-amber-400 text-[10px] px-1.5 py-0">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse mr-1" />
+                  {busyAgent.role
+                    ? busyAgent.role.slice(0, 30) + (busyAgent.role.length > 30 ? ".." : "")
+                    : "busy"}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="h-5 border-slate-700 text-slate-500 text-[10px] px-1.5 py-0">
+                  <span className="h-1.5 w-1.5 rounded-full bg-slate-600 mr-1" />
+                  idle
+                </Badge>
+              )}
+            </div>
+          </Card>
+        </TooltipTrigger>
+        {persona.description && (
+          <TooltipContent side="right" className="max-w-xs text-xs">
+            {persona.description}
+          </TooltipContent>
         )}
-      </div>
-    </button>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -1892,82 +1920,94 @@ export default function Agents() {
         </div>
       </div>
 
-      {/* Create Task Modal Overlay */}
-      {showCreateTask && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto">
-            <CreateTaskPanel
-              onClose={() => setShowCreateTask(false)}
-              onCreate={handleCreateTask}
-            />
-          </div>
-        </div>
-      )}
+      {/* Create Task Dialog */}
+      <Dialog open={showCreateTask} onOpenChange={setShowCreateTask}>
+        <DialogContent hideClose className="max-h-[85vh] overflow-y-auto">
+          <DialogTitle className="sr-only">New Task</DialogTitle>
+          <DialogDescription className="sr-only">Create a new task for the board</DialogDescription>
+          <CreateTaskPanel
+            onClose={() => setShowCreateTask(false)}
+            onCreate={handleCreateTask}
+          />
+        </DialogContent>
+      </Dialog>
 
-      {/* Launch Agent Modal Overlay */}
-      {showLaunchPanel && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto">
-            <LaunchAgentForm
-              onClose={() => setShowLaunchPanel(false)}
-              onLaunch={handleLaunch}
-              presets={presets}
-              onPresetsChanged={loadPresets}
-            />
-          </div>
-        </div>
-      )}
+      {/* Launch Agent Dialog */}
+      <Dialog open={showLaunchPanel} onOpenChange={setShowLaunchPanel}>
+        <DialogContent hideClose className="max-h-[85vh] overflow-y-auto">
+          <DialogTitle className="sr-only">Launch Agent</DialogTitle>
+          <DialogDescription className="sr-only">Configure and launch a new agent</DialogDescription>
+          <LaunchAgentForm
+            onClose={() => setShowLaunchPanel(false)}
+            onLaunch={handleLaunch}
+            presets={presets}
+            onPresetsChanged={loadPresets}
+          />
+        </DialogContent>
+      </Dialog>
 
-      {/* Import from Linear Modal Overlay */}
-      {showLinearImport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      {/* Import from Linear Dialog */}
+      <Dialog open={showLinearImport} onOpenChange={setShowLinearImport}>
+        <DialogContent hideClose className="max-h-[85vh] overflow-y-auto">
+          <DialogTitle className="sr-only">Import from Linear</DialogTitle>
+          <DialogDescription className="sr-only">Select Linear issues to import as tasks</DialogDescription>
           <ImportLinearModal
             onClose={() => setShowLinearImport(false)}
             onImported={refresh}
           />
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
-      {/* Review Modal Overlay */}
-      {showReviewModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto">
-            <ReviewModal
-              onClose={() => setShowReviewModal(false)}
-              onCreated={refresh}
-            />
-          </div>
-        </div>
-      )}
+      {/* Review Dialog */}
+      <Dialog open={showReviewModal} onOpenChange={setShowReviewModal}>
+        <DialogContent hideClose className="max-h-[85vh] overflow-y-auto">
+          <DialogTitle className="sr-only">Start Review</DialogTitle>
+          <DialogDescription className="sr-only">Configure and start a code review</DialogDescription>
+          <ReviewModal
+            onClose={() => setShowReviewModal(false)}
+            onCreated={refresh}
+          />
+        </DialogContent>
+      </Dialog>
 
-      {/* Test Gen Modal Overlay */}
-      {showTestGenModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto">
-            <TestGenModal
-              onClose={() => setShowTestGenModal(false)}
-              onCreated={refresh}
-            />
-          </div>
-        </div>
-      )}
+      {/* Test Gen Dialog */}
+      <Dialog open={showTestGenModal} onOpenChange={setShowTestGenModal}>
+        <DialogContent hideClose className="max-h-[85vh] overflow-y-auto">
+          <DialogTitle className="sr-only">Generate Test</DialogTitle>
+          <DialogDescription className="sr-only">Generate a Playwright test for a URL</DialogDescription>
+          <TestGenModal
+            onClose={() => setShowTestGenModal(false)}
+            onCreated={refresh}
+          />
+        </DialogContent>
+      </Dialog>
 
-      {/* Create / Edit Persona Modal Overlay */}
-      {showPersonaModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto">
-            <PersonaModal
-              existingPersona={editingPersona}
-              existingDepartments={Object.keys(personasByDepartment)}
-              onClose={() => {
-                setShowPersonaModal(false);
-                setEditingPersona(undefined);
-              }}
-              onSaved={loadPersonas}
-            />
-          </div>
-        </div>
-      )}
+      {/* Create / Edit Persona Dialog */}
+      <Dialog
+        open={showPersonaModal}
+        onOpenChange={(open) => {
+          setShowPersonaModal(open);
+          if (!open) setEditingPersona(undefined);
+        }}
+      >
+        <DialogContent hideClose className="max-h-[85vh] overflow-y-auto">
+          <DialogTitle className="sr-only">
+            {editingPersona ? "Edit Persona" : "Create Persona"}
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            {editingPersona ? "Edit an existing agent persona" : "Create a new agent persona"}
+          </DialogDescription>
+          <PersonaModal
+            existingPersona={editingPersona}
+            existingDepartments={Object.keys(personasByDepartment)}
+            onClose={() => {
+              setShowPersonaModal(false);
+              setEditingPersona(undefined);
+            }}
+            onSaved={loadPersonas}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

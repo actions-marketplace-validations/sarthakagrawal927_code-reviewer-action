@@ -1,6 +1,13 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Home, FolderGit2, Kanban, Clock, Settings } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Separator } from "@/components/ui/separator";
 
 interface NavItem {
   label: string;
@@ -26,7 +33,6 @@ export default function Sidebar() {
   // Auto-hide state
   const [visible, setVisible] = useState(true);
   const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   function isActive(href: string): boolean {
     if (href === "/") return pathname === "/";
@@ -101,64 +107,59 @@ export default function Sidebar() {
   };
 
   return (
-    <nav
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      className={`no-drag fixed top-3 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-full border border-[#1e2231] bg-[#13151c]/90 px-4 py-2 shadow-xl backdrop-blur-md transition-all duration-300 ease-in-out ${
-        visible
-          ? "pointer-events-auto translate-y-0 opacity-100"
-          : "pointer-events-none -translate-y-2 opacity-0"
-      }`}
-    >
-      {/* App icon */}
-      <span className="mr-2 text-base font-bold text-amber-400">
-        {"\u25C8"}
-      </span>
+    <TooltipProvider delayDuration={200}>
+      <nav
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className={`no-drag fixed top-3 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-full border border-[#1e2231] bg-[#13151c]/90 px-4 py-2 shadow-xl backdrop-blur-md transition-all duration-300 ease-in-out ${
+          visible
+            ? "pointer-events-auto translate-y-0 opacity-100"
+            : "pointer-events-none -translate-y-2 opacity-0"
+        }`}
+      >
+        {/* App icon */}
+        <span className="mr-2 text-base font-bold text-amber-400">
+          {"\u25C8"}
+        </span>
 
-      {/* Separator */}
-      <div className="mx-1 h-5 w-px bg-[#1e2231]" />
+        {/* Separator */}
+        <Separator orientation="vertical" className="mx-1 h-5 bg-[#1e2231]" />
 
-      {/* Nav items */}
-      {navItems.map((item) => {
-        const active = isActive(item.href);
-        return (
-          <div
-            key={item.href}
-            className="relative flex flex-col items-center"
-            onMouseEnter={() => setHoveredItem(item.href)}
-            onMouseLeave={() => setHoveredItem(null)}
-          >
-            <Link
-              to={item.href}
-              className={`flex h-10 w-10 items-center justify-center rounded-full text-[18px] transition-colors duration-200 ${
-                active
-                  ? "bg-amber-500/15 text-amber-400"
-                  : "text-slate-500 hover:bg-[#1e2231] hover:text-slate-200"
-              }`}
-            >
-              {item.icon}
-            </Link>
-
-            {/* Tooltip */}
-            {hoveredItem === item.href && (
-              <span className="absolute top-full mt-2 whitespace-nowrap rounded border border-[#1e2231] bg-[#13151c] px-2 py-1 text-[10px] text-slate-400">
+        {/* Nav items */}
+        {navItems.map((item) => {
+          const active = isActive(item.href);
+          return (
+            <Tooltip key={item.href}>
+              <TooltipTrigger asChild>
+                <Link
+                  to={item.href}
+                  className={`flex h-10 w-10 items-center justify-center rounded-full text-[18px] transition-colors duration-200 ${
+                    active
+                      ? "bg-amber-500/15 text-amber-400"
+                      : "text-slate-500 hover:bg-[#1e2231] hover:text-slate-200"
+                  }`}
+                >
+                  {item.icon}
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-[10px]">
                 {item.label}
-                <span className="ml-1.5 font-mono text-slate-600">
+                <span className="ml-1.5 font-mono text-slate-500">
                   g {item.shortcut.toLowerCase()}
                 </span>
-              </span>
-            )}
-          </div>
-        );
-      })}
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
 
-      {/* Separator */}
-      <div className="mx-1 h-5 w-px bg-[#1e2231]" />
+        {/* Separator */}
+        <Separator orientation="vertical" className="mx-1 h-5 bg-[#1e2231]" />
 
-      {/* Current page name */}
-      <span className="ml-1 text-[11px] font-medium text-slate-500">
-        {currentPage}
-      </span>
-    </nav>
+        {/* Current page name */}
+        <span className="ml-1 text-[11px] font-medium text-slate-500">
+          {currentPage}
+        </span>
+      </nav>
+    </TooltipProvider>
   );
 }

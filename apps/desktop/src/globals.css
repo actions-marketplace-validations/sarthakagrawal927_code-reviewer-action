@@ -3,15 +3,34 @@
 @tailwind utilities;
 
 :root {
+  /* Legacy app vars */
   --bg-main: #0e0f13;
   --bg-surface: #141519;
   --bg-raised: #1b1d24;
-  --accent: #d4a039;
   --text-primary: #e2e8f0;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
-  --border: #1f2129;
   --border-hover: #2e3040;
+
+  /* shadcn/ui CSS variables — amber/dark theme */
+  --background: 220 14% 5%;
+  --foreground: 214 32% 91%;
+  --card: 220 14% 7%;
+  --card-foreground: 214 32% 91%;
+  --primary: 38 92% 50%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 14% 10%;
+  --secondary-foreground: 210 20% 70%;
+  --muted: 220 14% 12%;
+  --muted-foreground: 215 20% 55%;
+  --accent: 38 92% 50%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 63% 56%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 14% 14%;
+  --input: 220 14% 14%;
+  --ring: 38 92% 50%;
+  --radius: 0.5rem;
 }
 
 @layer base {
