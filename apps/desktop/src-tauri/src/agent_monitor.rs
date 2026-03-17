@@ -30,6 +30,28 @@ pub fn start_agent_monitor(db: DbState, app_handle: AppHandle) {
                         None => continue,
                     };
 
+                    // Check for session_id marker file (written by agent stdout reader)
+                    if agent.session_id.is_none() {
+                        let marker_path = std::env::temp_dir()
+                            .join(format!("codevetter-agent-{}.session", agent.id));
+                        if let Ok(sid) = std::fs::read_to_string(&marker_path) {
+                            let sid = sid.trim().to_string();
+                            if !sid.is_empty() {
+                                if let Ok(conn) = db.0.lock() {
+                                    let _ = conn.execute(
+                                        "UPDATE agent_processes SET session_id = ?1 WHERE id = ?2",
+                                        rusqlite::params![sid, agent.id],
+                                    );
+                                }
+                                let _ = std::fs::remove_file(&marker_path);
+                                let _ = app_handle.emit("agent-status-changed", serde_json::json!({
+                                    "agent_id": agent.id,
+                                    "session_id": sid,
+                                }));
+                            }
+                        }
+                    }
+
                     if is_process_alive(pid) {
                         continue;
                     }

@@ -957,8 +957,8 @@ export default function Agents() {
           </div>
         </div>
 
-        {/* Center: Task Board + Activity Feed (shrinks when agent selected) */}
-        <div className={`flex flex-col overflow-hidden ${selectedAgentId ? "w-[320px] shrink-0 border-r border-[#1e2231]" : "flex-1"}`}>
+        {/* Center: Task Board (hidden when agent selected) */}
+        <div className={`flex flex-col overflow-hidden ${selectedAgentId ? "hidden" : "flex-1"}`}>
           <div className="border-b border-[#1e2231] px-4 py-3">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
               Task Board ({tasks.length})

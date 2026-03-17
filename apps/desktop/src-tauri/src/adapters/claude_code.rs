@@ -62,14 +62,15 @@ impl AgentAdapter for ClaudeCodeAdapter {
             .arg(&task_prompt)
             .arg("--output-format")
             .arg("stream-json")
+            .arg("--verbose")
             .arg("--model")
             .arg("sonnet")
             .current_dir(&project_path)
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped());
+            .stderr(std::process::Stdio::null());
 
-        let child = cmd
+        let mut child = cmd
             .spawn()
             .map_err(|e| format!("Failed to spawn claude CLI: {e}"))?;
 
@@ -83,11 +84,40 @@ impl AgentAdapter for ClaudeCodeAdapter {
             project_path.display()
         );
 
-        // We intentionally don't wait on the child here — it runs in the
-        // background.  The caller tracks the PID and can send SIGTERM to stop.
-        // The child handle is leaked intentionally; the OS will clean up when
-        // the process exits.
-        std::mem::forget(child);
+        // Read stdout in a background thread to capture session_id
+        let stdout = child.stdout.take();
+        let agent_id_clone = agent_id.clone();
+        if let Some(stdout) = stdout {
+            std::thread::Builder::new()
+                .name(format!("agent-stdout-{}", &agent_id_clone[..8]))
+                .spawn(move || {
+                    use std::io::BufRead;
+                    let reader = std::io::BufReader::new(stdout);
+                    for line in reader.lines() {
+                        match line {
+                            Ok(l) => {
+                                // Try to extract session_id from stream-json output
+                                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&l) {
+                                    if let Some(sid) = parsed.get("session_id").and_then(|v| v.as_str()) {
+                                        log::info!("Agent {} session_id: {}", agent_id_clone, sid);
+                                        // Store session_id — we'll update the DB from the monitor thread
+                                        // For now, write to a temp file that the monitor can read
+                                        let marker_path = std::env::temp_dir()
+                                            .join(format!("codevetter-agent-{}.session", agent_id_clone));
+                                        let _ = std::fs::write(&marker_path, sid);
+                                    }
+                                }
+                            }
+                            Err(_) => break,
+                        }
+                    }
+                    // Wait for the child to exit
+                    let _ = child.wait();
+                })
+                .ok();
+        } else {
+            std::mem::forget(child);
+        }
 
         Ok(AgentHandle {
             agent_id,
