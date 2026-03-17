@@ -31,7 +31,6 @@ import {
 } from "@/lib/tauri-ipc";
 import type { WorkspaceRow, FileEntry, FilePreview, CICheck, GitChangedFile, DiffComment } from "@/lib/tauri-ipc";
 import { useChatStream } from "@/hooks/use-chat-stream";
-import type { RateLimitEventInfo } from "@/hooks/use-chat-stream";
 import ContextMeter from "@/components/context-meter";
 import CreatePrModal from "@/components/create-pr-modal";
 import DiffViewer from "@/components/diff-viewer";
@@ -882,7 +881,7 @@ function WorkspaceChat({
 
   // ─── Stream handler ─────────────────────────────────────────────────────
 
-  const { sending, streamingText, stats: chatStats } = useChatStream({
+  const { sending, streamingText, stats: chatStats, activityStep } = useChatStream({
     onAssistantDone(text, newSessionId) {
       setChatState("idle");
       if (text.trim()) {
@@ -1109,9 +1108,11 @@ function WorkspaceChat({
                         />
                       </div>
                       <span className="text-[12px] text-slate-500">
-                        {chatState === "waiting"
-                          ? "Connecting..."
-                          : "Thinking..."}
+                        {activityStep
+                          ? `${activityStep.label}${activityStep.detail ? ` ${activityStep.detail}` : ""}...`
+                          : chatState === "waiting"
+                            ? "Connecting..."
+                            : "Thinking..."}
                       </span>
                     </div>
                   )}

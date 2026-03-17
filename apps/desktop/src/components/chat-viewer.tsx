@@ -2,26 +2,14 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { MessageRow, SessionRow } from "@/lib/tauri-ipc";
-import { sendChatMessage, isTauriAvailable } from "@/lib/tauri-ipc";
-import { useChatStream } from "@/hooks/use-chat-stream";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-
-/** Lightweight message added during a live resume chat (not from DB). */
-interface LocalChatMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  timestamp: string;
-}
 
 interface ChatViewerProps {
   messages: MessageRow[];
   session?: SessionRow;
   title?: string;
   isLoading?: boolean;
-  /** Called after a resumed chat completes so the parent can refresh. */
-  onSessionResumed?: () => void;
 }
 
 // ─── Utilities ──────────────────────────────────────────────────────────────
@@ -263,7 +251,6 @@ export default function ChatViewer({
   session,
   title,
   isLoading = false,
-  onSessionResumed,
 }: ChatViewerProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -289,106 +276,11 @@ export default function ChatViewer({
 
   const [searchInSession, setSearchInSession] = useState("");
 
-  // ─── Chat input state ─────────────────────────────────────────────────
-  const [chatInput, setChatInput] = useState("");
-  const chatInputRef = useRef<HTMLTextAreaElement>(null);
-
-  // Local messages added during a live resume chat (persisted across stream lifecycle)
-  const [localMessages, setLocalMessages] = useState<LocalChatMessage[]>([]);
-
-  // Reset local messages when session changes
-  const prevSessionId = useRef(session?.id);
-  useEffect(() => {
-    if (session?.id !== prevSessionId.current) {
-      setLocalMessages([]);
-      prevSessionId.current = session?.id;
-    }
-  }, [session?.id]);
-
-  // Last completed response stats (shown briefly after streaming ends)
-  const [lastResponseStats, setLastResponseStats] = useState<{
-    elapsedMs: number;
-    inputTokens: number;
-    outputTokens: number;
-  } | null>(null);
-  const lastStatsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const chatStatsRef = useRef({ elapsedMs: 0, inputTokens: 0, outputTokens: 0 });
-
-  const [waitingForResponse, setWaitingForResponse] = useState(false);
-
-  const { sending: chatSending, streamingText: chatStreamingText, stats: chatStats } = useChatStream({
-    onAssistantDone(text) {
-      setWaitingForResponse(false);
-      if (text.trim()) {
-        setLocalMessages((prev) => [
-          ...prev,
-          {
-            id: `local-assistant-${Date.now()}`,
-            role: "assistant",
-            content: text,
-            timestamp: new Date().toISOString(),
-          },
-        ]);
-      }
-      setLastResponseStats({ ...chatStatsRef.current });
-      if (lastStatsTimerRef.current) clearTimeout(lastStatsTimerRef.current);
-      lastStatsTimerRef.current = setTimeout(() => setLastResponseStats(null), 8000);
-      onSessionResumed?.();
-    },
-    onSystemMessage() { setWaitingForResponse(false); },
-    onTextUpdate() { setWaitingForResponse(false); },
-  });
-
-  chatStatsRef.current = chatStats;
-
-  // Auto-scroll to bottom on new messages or streaming updates
+  // Auto-scroll to bottom on new messages
   useEffect(() => {
     const el = scrollContainerRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [messages.length, localMessages.length, chatSending, chatStreamingText, waitingForResponse]);
-
-  // Cleanup timers on unmount
-  useEffect(() => {
-    return () => {
-      if (lastStatsTimerRef.current) clearTimeout(lastStatsTimerRef.current);
-    };
-  }, []);
-
-  const handleChatSend = useCallback(async () => {
-    const msg = chatInput.trim();
-    if (!msg || chatSending || waitingForResponse || !session) return;
-    setChatInput("");
-    setWaitingForResponse(true);
-    // Immediately show the user's message in the local chat
-    setLocalMessages((prev) => [
-      ...prev,
-      {
-        id: `local-user-${Date.now()}`,
-        role: "user",
-        content: msg,
-        timestamp: new Date().toISOString(),
-      },
-    ]);
-    scrollToBottom();
-    try {
-      await sendChatMessage(msg, session.id, session.cwd ?? undefined);
-      // sendChatMessage returns immediately (streaming happens via events)
-      // If no stream events arrive within 30s, reset the waiting state
-      setTimeout(() => setWaitingForResponse(false), 30000);
-    } catch (err) {
-      setWaitingForResponse(false);
-      console.error("Failed to send message:", err);
-      setLocalMessages((prev) => [
-        ...prev,
-        {
-          id: `local-error-${Date.now()}`,
-          role: "assistant",
-          content: `Error: ${err instanceof Error ? err.message : String(err)}`,
-          timestamp: new Date().toISOString(),
-        },
-      ]);
-    }
-  }, [chatInput, chatSending, waitingForResponse, session, scrollToBottom]);
+  }, [messages.length]);
 
   // Filter messages — memoized to avoid recomputing on every scroll
   const visibleMessages = useMemo(() => {
@@ -617,7 +509,7 @@ export default function ChatViewer({
             </svg>
             <p className="text-xs">Loading messages...</p>
           </div>
-        ) : visibleMessages.length === 0 && localMessages.length === 0 ? (
+        ) : visibleMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-slate-600">
             <span className="text-2xl mb-2">{"\u25CB"}</span>
             <p className="text-xs">No messages in this session</p>
@@ -627,101 +519,9 @@ export default function ChatViewer({
             {visibleMessages.map((msg) => (
               <MessageBubble key={msg.id} message={msg} />
             ))}
-            {/* Messages added during live resume chat */}
-            {localMessages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`rounded-xl p-4 fade-in ${
-                  msg.role === "user" ? "bg-amber-500/5" : "bg-emerald-500/5"
-                }`}
-              >
-                <div className="mb-2 flex items-center gap-2">
-                  <span
-                    className={`text-xs font-semibold ${
-                      msg.role === "user" ? "text-amber-400" : "text-emerald-400"
-                    }`}
-                  >
-                    {msg.role === "user" ? "You" : "Assistant"}
-                  </span>
-                  <span className="mono text-[10px] text-slate-600">
-                    {formatTimestamp(msg.timestamp)}
-                  </span>
-                </div>
-                <div className="text-sm leading-relaxed text-slate-300 prose prose-invert prose-sm max-w-none prose-pre:bg-[#0d0f16] prose-pre:border prose-pre:border-[#1e2231] prose-pre:rounded-lg prose-code:text-amber-300 prose-a:text-amber-400 prose-strong:text-slate-200">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {msg.content}
-                  </ReactMarkdown>
-                </div>
-              </div>
-            ))}
           </div>
         )}
       </div>
-
-      {/* Waiting for response (before streaming starts) */}
-      {waitingForResponse && !chatSending && (
-        <div className="px-4 pb-3">
-          <div className="rounded-lg bg-[#161922] border border-[#1e2231] px-4 py-3">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-400" style={{ animation: "pulse 1s ease-in-out infinite" }} />
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-400" style={{ animation: "pulse 1s ease-in-out infinite 200ms" }} />
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-400" style={{ animation: "pulse 1s ease-in-out infinite 400ms" }} />
-              </div>
-              <span className="text-[12px] text-slate-500">Connecting...</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Streaming response */}
-      {chatSending && (
-        <div className="px-4 pb-3">
-          <div className="rounded-lg bg-[#161922] border border-[#1e2231] px-4 py-3">
-            {chatStreamingText ? (
-              <div>
-                <div className="text-sm leading-relaxed text-slate-300 prose prose-invert prose-sm max-w-none prose-pre:bg-[#0d0f16] prose-pre:border prose-pre:border-[#1e2231] prose-pre:rounded-lg prose-code:text-amber-300">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {chatStreamingText}
-                  </ReactMarkdown>
-                  <span className="inline-block w-1.5 h-4 bg-amber-400/50 animate-pulse ml-0.5 align-text-bottom" />
-                </div>
-                <div className="flex items-center gap-3 mt-2 pt-2 border-t border-[#1e2231]">
-                  <span className="text-[10px] text-slate-600 tabular-nums">
-                    {chatStats.elapsedMs > 0
-                      ? `${(chatStats.elapsedMs / 1000).toFixed(1)}s`
-                      : ""}
-                  </span>
-                  {chatStats.outputTokens > 0 && (
-                    <span className="text-[10px] text-slate-600 tabular-nums">
-                      {formatTokens(chatStats.outputTokens)} tokens
-                    </span>
-                  )}
-                  <span className="flex-1" />
-                  <span className="flex items-center gap-1">
-                    <span className="h-1 w-1 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-[10px] text-emerald-400/70">Streaming</span>
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-[pulse_1s_ease-in-out_infinite]" />
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-[pulse_1s_ease-in-out_infinite_200ms]" />
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-[pulse_1s_ease-in-out_infinite_400ms]" />
-                </div>
-                <span className="text-[12px] text-slate-500">Thinking...</span>
-                {chatStats.elapsedMs > 0 && (
-                  <span className="text-[10px] text-slate-600 tabular-nums">
-                    {(chatStats.elapsedMs / 1000).toFixed(1)}s
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Scroll to bottom button */}
       {showScrollButton && (
@@ -739,58 +539,6 @@ export default function ChatViewer({
               />
             </svg>
           </button>
-        </div>
-      )}
-
-      {/* Completion stats (shown briefly after response ends) */}
-      {lastResponseStats && !chatSending && (
-        <div className="px-4 pb-1">
-          <div className="flex items-center gap-3 text-[10px] text-slate-500 tabular-nums">
-            <span className="text-emerald-400/70">Done</span>
-            <span>{(lastResponseStats.elapsedMs / 1000).toFixed(1)}s</span>
-            {lastResponseStats.inputTokens > 0 && (
-              <span>{formatTokens(lastResponseStats.inputTokens)} in</span>
-            )}
-            {lastResponseStats.outputTokens > 0 && (
-              <span>{formatTokens(lastResponseStats.outputTokens)} out</span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Chat input — send messages to resume/continue this session */}
-      {session && isTauriAvailable() && (
-        <div className="shrink-0 border-t border-[#1e2231] px-3 py-2">
-          <div className="flex items-end gap-2">
-            <textarea
-              ref={chatInputRef}
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleChatSend();
-                }
-              }}
-              placeholder={chatSending || waitingForResponse ? "Waiting for response..." : "Continue this session... (Enter to send)"}
-              disabled={chatSending || waitingForResponse}
-              rows={1}
-              className="flex-1 resize-none rounded-lg border border-[#1e2231] bg-[#0f1117] px-3 py-2 text-[13px] text-slate-200 placeholder-slate-600 outline-none focus:border-amber-500/50 disabled:opacity-50 max-h-24"
-              style={{ height: "auto", minHeight: "36px" }}
-              onInput={(e) => {
-                const t = e.target as HTMLTextAreaElement;
-                t.style.height = "auto";
-                t.style.height = Math.min(t.scrollHeight, 96) + "px";
-              }}
-            />
-            <button
-              onClick={handleChatSend}
-              disabled={chatSending || !chatInput.trim()}
-              className="rounded-lg bg-amber-500 px-3 py-2 text-[11px] font-medium text-white hover:bg-amber-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shrink-0"
-            >
-              {chatSending ? "..." : "Send"}
-            </button>
-          </div>
         </div>
       )}
     </div>

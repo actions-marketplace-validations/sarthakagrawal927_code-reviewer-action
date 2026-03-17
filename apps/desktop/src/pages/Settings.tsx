@@ -332,6 +332,7 @@ function LinearConnectionPanel() {
   const [checking, setChecking] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [linearClientId, setLinearClientId] = usePref("linear_client_id", "");
 
   const checkConnection = useCallback(async () => {
     if (!isTauriAvailable()) {
@@ -428,6 +429,20 @@ function LinearConnectionPanel() {
                   Connect to import issues as agent tasks
                 </p>
               </div>
+            </div>
+            <div className="flex flex-col gap-2 mb-3">
+              <label className="text-xs font-medium text-slate-400">Linear Client ID</label>
+              <input
+                type="text"
+                value={linearClientId}
+                onChange={(e) => setLinearClientId(e.target.value)}
+                placeholder="your-linear-oauth-client-id"
+                className="mono rounded-lg border border-[#1e2231] bg-[#0a0c12] px-3 py-2 text-sm text-slate-200 placeholder-slate-600 outline-none focus:border-[#5E6AD2]/50"
+              />
+              <p className="text-[11px] text-slate-600">
+                From your Linear OAuth application settings. Can also be set via{" "}
+                <span className="mono">CODEVETTER_LINEAR_CLIENT_ID</span> env var.
+              </p>
             </div>
             <button
               onClick={handleConnect}

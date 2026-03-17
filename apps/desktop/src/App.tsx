@@ -11,7 +11,6 @@ import Home from "@/pages/Home";
 import Review from "@/pages/Review";
 import Sessions from "@/pages/Sessions";
 import Agents from "@/pages/Agents";
-import Chat from "@/pages/Chat";
 import Workspaces from "@/pages/Workspaces";
 import Usage from "@/pages/Usage";
 import Settings from "@/pages/Settings";
@@ -124,7 +123,6 @@ export default function App() {
         <Route path="/review" element={<Review />} />
         <Route path="/workspaces" element={<Workspaces />} />
         <Route path="/sessions" element={<Sessions />} />
-        <Route path="/chat" element={<Chat />} />
         <Route path="/usage" element={<Usage />} />
         <Route path="/agents" element={<Agents />} />
       </Route>

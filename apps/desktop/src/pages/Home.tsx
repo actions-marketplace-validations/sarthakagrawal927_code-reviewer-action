@@ -13,7 +13,6 @@ import {
   listProviderAccounts,
   checkAccountUsage,
   checkLiveUsage,
-  createProviderAccount,
   deleteProviderAccount,
   detectProviderAccounts,
   isTauriAvailable,
@@ -284,107 +283,6 @@ function AccountUsageRow({
             </span>
           </div>
         )}
-      </div>
-    </div>
-  );
-}
-
-function AddAccountInline({ onAdd }: { onAdd: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [provider, setProvider] = useState<"anthropic" | "openai" | "google">("anthropic");
-  const [limit, setLimit] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  async function handleSave() {
-    if (!name.trim()) return;
-    setSaving(true);
-    try {
-      await createProviderAccount({
-        name: name.trim(),
-        provider,
-        weeklyLimit: limit ? parseFloat(limit) : undefined,
-      });
-      setName("");
-      setLimit("");
-      setOpen(false);
-      onAdd();
-    } catch (err) {
-      console.error("Failed to create account:", err);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="flex items-center gap-2 px-3 py-2 text-slate-600 transition-colors hover:bg-[#1a1d27] hover:text-slate-400 w-full"
-      >
-        <span className="text-sm">+</span>
-        <span className="text-[11px] font-medium">Add Account</span>
-      </button>
-    );
-  }
-
-  return (
-    <div className="px-3 py-2.5 border-t border-[#1e2231] bg-[#0a0c12]/50">
-      <div className="flex items-center gap-2 mb-2">
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Account name (e.g. Personal, Work)"
-          className="flex-1 rounded border border-[#1e2231] bg-[#0f1117] px-2 py-1 text-[12px] text-slate-200 placeholder-slate-600 outline-none focus:border-amber-500/50"
-          autoFocus
-          onKeyDown={(e) => {
-            if (e.key === "Enter") handleSave();
-            if (e.key === "Escape") setOpen(false);
-          }}
-        />
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="flex gap-1">
-          {(["anthropic", "openai", "google"] as const).map((p) => (
-            <button
-              key={p}
-              onClick={() => setProvider(p)}
-              className={`rounded px-2 py-0.5 text-[11px] font-medium capitalize transition-colors ${
-                provider === p
-                  ? p === "anthropic"
-                    ? "bg-amber-500/15 text-amber-400"
-                    : p === "google"
-                    ? "bg-blue-500/15 text-blue-400"
-                    : "bg-emerald-500/15 text-emerald-400"
-                  : "text-slate-500 hover:text-slate-300"
-              }`}
-            >
-              {p === "anthropic" ? "Anthropic" : p === "google" ? "Google" : "OpenAI"}
-            </button>
-          ))}
-        </div>
-        <input
-          type="number"
-          value={limit}
-          onChange={(e) => setLimit(e.target.value)}
-          placeholder="Weekly limit ($)"
-          className="w-28 rounded border border-[#1e2231] bg-[#0f1117] px-2 py-1 text-[12px] text-slate-200 placeholder-slate-600 outline-none focus:border-amber-500/50"
-        />
-        <span className="flex-1" />
-        <button
-          onClick={() => setOpen(false)}
-          className="text-[11px] text-slate-500 hover:text-slate-300"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={!name.trim() || saving}
-          className="rounded bg-amber-500 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-amber-600 disabled:opacity-50"
-        >
-          Add
-        </button>
       </div>
     </div>
   );

@@ -891,20 +891,6 @@ export default function Sessions() {
             messages={selectedMessages}
             session={selectedSession ?? undefined}
             isLoading={messagesLoading}
-            onSessionResumed={() => {
-              // Refresh session data after a resumed chat completes
-              if (selectedId) {
-                (async () => {
-                  try {
-                    const result = await getSession(selectedId);
-                    setSelectedSession(result.session);
-                    setSelectedMessages(result.messages);
-                  } catch {
-                    // ignore — session data will refresh on next select
-                  }
-                })();
-              }
-            }}
           />
         ) : (
           <div className="flex h-full flex-col items-center justify-center text-slate-600">
