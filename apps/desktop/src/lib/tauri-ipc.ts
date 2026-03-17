@@ -374,6 +374,10 @@ export async function listSessionSubagents(
   return resp.subagents;
 }
 
+export async function deleteSession(sessionId: string): Promise<{ deleted: boolean }> {
+  return safeInvoke("delete_session", { sessionId });
+}
+
 // ─── Session Merge Commands ──────────────────────────────────────────────────
 
 export async function mergeSessions(

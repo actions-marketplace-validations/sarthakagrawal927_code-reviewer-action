@@ -494,3 +494,22 @@ pub async fn merge_projects(
 
     Ok(json!({ "moved_sessions": total_moved }))
 }
+
+#[tauri::command]
+pub async fn delete_session(db: State<'_, DbState>, session_id: String) -> Result<Value, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    // Delete messages first (foreign key)
+    conn.execute(
+        "DELETE FROM cc_messages WHERE session_id = ?1",
+        rusqlite::params![session_id],
+    )
+    .map_err(|e| e.to_string())?;
+    // Delete session
+    let deleted = conn
+        .execute(
+            "DELETE FROM cc_sessions WHERE id = ?1",
+            rusqlite::params![session_id],
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(json!({ "deleted": deleted > 0 }))
+}

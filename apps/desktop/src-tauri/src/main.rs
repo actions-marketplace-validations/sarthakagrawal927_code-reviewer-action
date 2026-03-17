@@ -145,6 +145,7 @@ fn main() {
             commands::sessions::merge_sessions,
             commands::sessions::merge_projects,
             commands::sessions::list_session_subagents,
+            commands::sessions::delete_session,
             // History / indexer commands
             commands::history::trigger_index,
             commands::history::get_index_stats,

@@ -15,6 +15,7 @@ import {
   isTauriAvailable,
   detectRunningAgents,
   listSessionSubagents,
+  deleteSession,
 } from "@/lib/tauri-ipc";
 import type {
   SessionRow,
@@ -889,43 +890,30 @@ export default function Sessions() {
                           }}
                         />
                       </div>
+                      {!mergeMode && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm("Delete this session?")) {
+                              deleteSession(session.id).then(() => {
+                                setSessions((prev) => prev.filter((s) => s.id !== session.id));
+                                if (selectedId === session.id) {
+                                  setSelectedId(null);
+                                  setSelectedSession(null);
+                                  setSelectedMessages([]);
+                                }
+                              });
+                            }
+                          }}
+                          className="opacity-0 group-hover:opacity-100 shrink-0 p-1 text-slate-600 hover:text-red-400 transition-all"
+                          title="Delete session"
+                        >
+                          <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
-
-                    {/* Expanded subagent rows */}
-                    {isExpanded && subagents.length > 0 && (
-                      <div className="border-b border-[#1e2231]/50">
-                        {subagents.map((sub, si) => {
-                          const isLast = si === subagents.length - 1;
-                          const connector = isLast ? "\u2514\u2500" : "\u251C\u2500";
-                          const desc = sub.taskDescription
-                            ? sub.taskDescription.length > 40
-                              ? sub.taskDescription.slice(0, 40) + "..."
-                              : sub.taskDescription
-                            : sub.slug ?? `agent-${sub.agentId.slice(0, 8)}`;
-
-                          return (
-                            <div
-                              key={sub.agentId}
-                              className="ml-6 pl-3 border-l border-[#1e2231] flex items-center gap-2 py-1 px-2 hover:bg-[#1a1d27] transition-colors cursor-default"
-                            >
-                              <span className="text-slate-700 font-mono text-[11px] shrink-0 select-none">
-                                {connector}
-                              </span>
-                              <span className="h-1.5 w-1.5 rounded-full bg-violet-400/60 shrink-0" />
-                              <span className="text-[11px] text-slate-500 truncate min-w-0 flex-1">
-                                {desc}
-                              </span>
-                              <span className="text-[10px] text-slate-600 tabular-nums shrink-0">
-                                {sub.lineCount > 0 && `${sub.lineCount}L`}
-                              </span>
-                              <span className="text-[10px] text-slate-600 tabular-nums shrink-0 w-[28px] text-right">
-                                {formatRelativeTime(sub.endedAt ?? sub.startedAt ?? "")}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
                   </div>
                 );
               })}
