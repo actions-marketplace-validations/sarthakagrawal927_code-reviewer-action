@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 import SessionCard from "@/components/session-card";
 import ScoreBadge from "@/components/score-badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   getIndexStats,
   listSessions,
@@ -184,8 +187,9 @@ function AccountUsageRow({
           {account.name}
         </span>
         {plan && (
-          <span
-            className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+          <Badge
+            variant="outline"
+            className={`text-[10px] font-semibold uppercase tracking-wide border-0 ${
               account.provider === "anthropic"
                 ? "bg-amber-500/15 text-amber-400"
                 : account.provider === "google"
@@ -194,14 +198,16 @@ function AccountUsageRow({
             }`}
           >
             {planLabel(plan)}
-          </span>
+          </Badge>
         )}
         <span className="flex-1" />
         {isLiveSupported && (
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onCheckLive}
             disabled={checkingLive}
-            className={`text-[10px] transition-colors disabled:opacity-50 ${
+            className={`h-auto px-1.5 py-0.5 text-[10px] ${
               account.provider === "anthropic"
                 ? "text-amber-400/70 hover:text-amber-400"
                 : account.provider === "google"
@@ -216,7 +222,7 @@ function AccountUsageRow({
             }
           >
             {checkingLive ? "..." : "Refresh"}
-          </button>
+          </Button>
         )}
       </div>
 
@@ -292,11 +298,11 @@ function AccountUsageRow({
 
 function ReviewStatusBadge({ status }: { status: string }) {
   const config: Record<string, string> = {
-    pending: "text-yellow-500",
-    analyzing: "text-amber-400",
-    running: "text-amber-400",
-    completed: "text-emerald-400",
-    failed: "text-red-400",
+    pending: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
+    analyzing: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    running: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    completed: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    failed: "bg-red-500/10 text-red-400 border-red-500/20",
   };
   const labels: Record<string, string> = {
     pending: "Pending",
@@ -306,9 +312,12 @@ function ReviewStatusBadge({ status }: { status: string }) {
     failed: "Failed",
   };
   return (
-    <span className={`text-[11px] ${config[status] ?? "text-slate-500"}`}>
+    <Badge
+      variant="outline"
+      className={`text-[10px] px-1.5 py-0 ${config[status] ?? "text-slate-500"}`}
+    >
       {labels[status] ?? status}
-    </span>
+    </Badge>
   );
 }
 
@@ -560,13 +569,15 @@ export default function Home() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-sm font-semibold text-slate-100">Overview</h1>
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           onClick={handleTriggerIndex}
           disabled={indexing}
-          className="rounded px-2.5 py-1 text-[11px] font-medium text-slate-500 transition-colors hover:text-slate-300 hover:bg-[#1a1d27] disabled:opacity-50"
+          className="h-auto px-2.5 py-1 text-[11px] font-medium"
         >
           {indexing ? "Indexing..." : "Re-index"}
-        </button>
+        </Button>
       </div>
 
       {/* Index result banner */}
@@ -662,15 +673,15 @@ export default function Home() {
             color: "text-cyan-400",
           },
         ].map((stat) => (
-          <div
+          <Card
             key={stat.label}
-            className="flex items-center justify-between rounded-lg border border-[#1e2231] bg-[#0f1117] px-4 py-3"
+            className="flex items-center justify-between border-[#1e2231] bg-[#0f1117] px-4 py-3"
           >
             <span className="text-[11px] text-slate-500">{stat.label}</span>
             <span className={`text-sm font-semibold tabular-nums ${stat.color}`}>
               {stat.value}
             </span>
-          </div>
+          </Card>
         ))}
       </div>
 
@@ -679,7 +690,10 @@ export default function Home() {
         <div className="flex items-center justify-between">
           <h2 className="text-[13px] font-medium text-slate-300">Usage</h2>
           <div className="flex items-center gap-3">
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-auto px-1.5 py-0.5 text-[11px] text-slate-500 hover:text-slate-300"
               onClick={async () => {
                 try {
                   const result = await detectProviderAccounts();
@@ -701,32 +715,28 @@ export default function Home() {
                   console.error("Detection failed:", err);
                 }
               }}
-              className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
             >
               Re-detect
-            </button>
-            <Link
-              to="/usage"
-              className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
-            >
-              Details
-            </Link>
+            </Button>
+            <Button variant="link" size="sm" className="h-auto px-0 py-0 text-[11px] text-slate-500 hover:text-slate-300" asChild>
+              <Link to="/usage">Details</Link>
+            </Button>
           </div>
         </div>
         {loading ? (
-          <div className="flex items-center justify-center py-4 rounded-lg border border-[#1e2231]">
+          <Card className="flex items-center justify-center py-4 border-[#1e2231]">
             <svg className="h-4 w-4 animate-spin text-slate-500" viewBox="0 0 24 24" fill="none">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-          </div>
+          </Card>
         ) : (
-          <div className="rounded-lg border border-[#1e2231] overflow-hidden">
+          <Card className="border-[#1e2231] overflow-hidden">
             {accounts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-5">
+              <CardContent className="flex flex-col items-center justify-center py-5 p-5">
                 <p className="text-[11px] text-slate-600">No CLI accounts detected</p>
                 <p className="text-[11px] text-slate-600 mt-0.5">Log into Claude Code, Codex, or Gemini to auto-detect</p>
-              </div>
+              </CardContent>
             ) : (
               accounts.map((account, idx) => {
                 // If multiple accounts share the same provider, only the first shows local stats
@@ -763,7 +773,7 @@ export default function Home() {
               );})
 
             )}
-          </div>
+          </Card>
         )}
       </div>
 
@@ -775,12 +785,9 @@ export default function Home() {
             <h2 className="text-[13px] font-medium text-slate-300">
               Recent Sessions
             </h2>
-            <Link
-              to="/history"
-              className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
-            >
-              View all
-            </Link>
+            <Button variant="link" size="sm" className="h-auto px-0 py-0 text-[11px] text-slate-500 hover:text-slate-300" asChild>
+              <Link to="/history">View all</Link>
+            </Button>
           </div>
           {loading ? (
             <div className="flex items-center justify-center py-8">
@@ -805,17 +812,19 @@ export default function Home() {
               </svg>
             </div>
           ) : recentSessions.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 rounded-lg border border-[#1e2231]">
+            <Card className="flex flex-col items-center justify-center py-8 border-[#1e2231]">
               <p className="text-[11px] text-slate-600">No sessions yet</p>
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={handleTriggerIndex}
-                className="mt-1 text-[11px] text-slate-500 hover:text-slate-300"
+                className="mt-1 h-auto px-2 py-0.5 text-[11px] text-slate-500 hover:text-slate-300"
               >
                 Run indexer
-              </button>
-            </div>
+              </Button>
+            </Card>
           ) : (
-            <div className="rounded-lg border border-[#1e2231] overflow-hidden">
+            <Card className="border-[#1e2231] overflow-hidden">
               {recentSessions.map((session) => (
                 <div key={session.id} className="border-b border-[#1e2231]/50 last:border-b-0">
                   <SessionCard
@@ -824,7 +833,7 @@ export default function Home() {
                   />
                 </div>
               ))}
-            </div>
+            </Card>
           )}
         </div>
 
@@ -832,12 +841,9 @@ export default function Home() {
         <div className="col-span-2 flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <h2 className="text-[13px] font-medium text-slate-300">Reviews</h2>
-            <Link
-              to="/board"
-              className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
-            >
-              New review
-            </Link>
+            <Button variant="link" size="sm" className="h-auto px-0 py-0 text-[11px] text-slate-500 hover:text-slate-300" asChild>
+              <Link to="/board">New review</Link>
+            </Button>
           </div>
           {loading ? (
             <div className="flex items-center justify-center py-6">
@@ -862,17 +868,14 @@ export default function Home() {
               </svg>
             </div>
           ) : recentReviews.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 rounded-lg border border-[#1e2231]">
+            <Card className="flex flex-col items-center justify-center py-8 border-[#1e2231]">
               <p className="text-[11px] text-slate-600">No reviews yet</p>
-              <Link
-                to="/board"
-                className="mt-1 text-[11px] text-slate-500 hover:text-slate-300"
-              >
-                Start a review
-              </Link>
-            </div>
+              <Button variant="link" size="sm" className="mt-1 h-auto px-0 py-0 text-[11px] text-slate-500 hover:text-slate-300" asChild>
+                <Link to="/board">Start a review</Link>
+              </Button>
+            </Card>
           ) : (
-            <div className="rounded-lg border border-[#1e2231] overflow-hidden">
+            <Card className="border-[#1e2231] overflow-hidden">
               {recentReviews.map((review) => (
                 <div
                   key={review.id}
@@ -898,7 +901,7 @@ export default function Home() {
                   <ReviewStatusBadge status={review.status} />
                 </div>
               ))}
-            </div>
+            </Card>
           )}
         </div>
       </div>
@@ -909,14 +912,11 @@ export default function Home() {
           <h2 className="text-[13px] font-medium text-slate-300">
             Agents
           </h2>
-          <Link
-            to="/board"
-            className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
-          >
-            Mission Control
-          </Link>
+          <Button variant="link" size="sm" className="h-auto px-0 py-0 text-[11px] text-slate-500 hover:text-slate-300" asChild>
+            <Link to="/board">Mission Control</Link>
+          </Button>
         </div>
-        <div className="rounded-lg border border-[#1e2231] overflow-hidden">
+        <Card className="border-[#1e2231] overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-6">
               <svg
@@ -982,7 +982,7 @@ export default function Home() {
               </Link>
             </>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );

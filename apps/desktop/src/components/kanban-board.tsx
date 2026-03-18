@@ -1,4 +1,6 @@
 import type { Task } from "@/lib/tauri-ipc";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 interface KanbanBoardProps {
   tasks: Task[];
@@ -31,40 +33,44 @@ function TaskCard({
   onAssign?: () => void;
 }) {
   return (
-    <div className="group/task w-full rounded-lg border border-[#1e2231] bg-[#0f1117] p-3 text-left transition-all hover:border-[#2d3348] hover:bg-[#13151c]">
-      <div className="cursor-pointer" onClick={onClick}>
-        <h5 className="text-xs font-medium text-slate-200 line-clamp-2">
-          {task.title}
-        </h5>
-        {task.description && (
-          <p className="mt-1 text-[11px] text-slate-500 line-clamp-2">
-            {task.description}
-          </p>
-        )}
-      </div>
-      <div className="mt-2 flex items-center gap-2">
-        {task.assigned_agent ? (
-          <div className="flex items-center gap-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-            <span className="mono text-[10px] text-amber-400">
-              {task.assigned_agent.slice(0, 8)}
+    <Card className="group/task w-full border-[#1e2231] bg-[#0f1117] transition-all hover:border-[#2d3348] hover:bg-[#13151c]">
+      <CardContent className="p-3">
+        <div className="cursor-pointer" onClick={onClick}>
+          <h5 className="text-xs font-medium text-slate-200 line-clamp-2">
+            {task.title}
+          </h5>
+          {task.description && (
+            <p className="mt-1 text-[11px] text-slate-500 line-clamp-2">
+              {task.description}
+            </p>
+          )}
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          {task.assigned_agent ? (
+            <div className="flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+              <span className="mono text-[10px] text-amber-400">
+                {task.assigned_agent.slice(0, 8)}
+              </span>
+            </div>
+          ) : onAssign ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => { e.stopPropagation(); onAssign(); }}
+              className="h-auto px-1 py-0 text-[10px] text-slate-600 hover:text-amber-400 opacity-0 group-hover/task:opacity-100"
+            >
+              Assign agent
+            </Button>
+          ) : null}
+          {task.review_score != null && (
+            <span className="text-[10px] text-slate-500">
+              Score: {Math.round(task.review_score)}
             </span>
-          </div>
-        ) : onAssign ? (
-          <button
-            onClick={(e) => { e.stopPropagation(); onAssign(); }}
-            className="text-[10px] text-slate-600 hover:text-amber-400 opacity-0 group-hover/task:opacity-100"
-          >
-            Assign agent
-          </button>
-        ) : null}
-        {task.review_score != null && (
-          <span className="text-[10px] text-slate-500">
-            Score: {Math.round(task.review_score)}
-          </span>
-        )}
-      </div>
-    </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -92,12 +98,14 @@ export default function KanbanBoard({ tasks, onTaskClick, onAddTask, onAssignAge
                 {colTasks.length}
               </span>
               {onAddTask && (
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => onAddTask(col.id)}
-                  className="ml-auto text-sm text-slate-600 opacity-0 transition-opacity hover:text-amber-400 group-hover/header:opacity-100"
+                  className="ml-auto h-6 w-6 text-sm text-slate-600 opacity-0 hover:text-amber-400 group-hover/header:opacity-100"
                 >
                   +
-                </button>
+                </Button>
               )}
             </div>
 

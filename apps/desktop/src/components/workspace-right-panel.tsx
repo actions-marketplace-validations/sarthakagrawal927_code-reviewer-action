@@ -11,6 +11,8 @@ import {
   createDiffComment,
   deleteDiffComment,
 } from "@/lib/tauri-ipc";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type {
   WorkspaceRow,
   FileEntry,
@@ -641,11 +643,12 @@ export default function WorkspaceRightPanel({
   const changedCount = gitStatus?.changed_files ?? 0;
 
   const tabClass = (tab: RightTab) =>
-    `px-2.5 py-2 text-[11px] font-medium transition-colors relative ${
+    cn(
+      "px-2.5 py-2 text-[11px] font-medium transition-colors relative rounded-none h-auto",
       activeTab === tab
         ? "text-slate-200 border-b-2 border-amber-400"
         : "text-slate-500 hover:text-slate-300 border-b-2 border-transparent"
-    }`;
+    );
 
   return (
     <div className="flex h-full flex-col">
@@ -693,12 +696,14 @@ export default function WorkspaceRightPanel({
         </button>
         {/* Review button */}
         <div className="ml-auto pr-2">
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={onNavigateReview}
-            className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400 hover:bg-amber-500/20 transition-colors"
+            className="h-auto px-2 py-0.5 text-[10px] font-medium text-amber-400 border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 hover:text-amber-400"
           >
             Review
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -727,12 +732,12 @@ export default function WorkspaceRightPanel({
                   <p className="text-[11px] text-slate-500 text-center">
                     No pull request linked yet
                   </p>
-                  <button
+                  <Button
                     onClick={onShowCreatePr}
-                    className="rounded-lg bg-amber-500 px-4 py-2 text-[11px] font-semibold text-black transition-colors hover:bg-amber-400"
+                    className="bg-amber-500 text-black hover:bg-amber-400 text-[11px] font-semibold"
                   >
                     Create Pull Request
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}

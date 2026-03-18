@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 
 import CostDashboard from "@/components/cost-dashboard";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 import {
   getPreference,
   setPreference,
@@ -104,21 +109,22 @@ function TextInputSetting({
     <div className="flex flex-col gap-1.5 py-3">
       <p className="text-sm font-medium text-slate-200">{label}</p>
       <p className="text-xs text-slate-500">{description}</p>
-      <input
+      <Input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`mt-1 rounded-lg border border-[#1e2231] bg-[#0f1117] px-3 py-2 text-sm text-slate-200 placeholder-slate-600 outline-none focus:border-amber-500/50 ${
-          mono ? "mono" : ""
-        }`}
+        className={cn(
+          "mt-1 rounded-lg border-[#1e2231] bg-[#0f1117] text-slate-200 placeholder-slate-600 focus-visible:ring-amber-500/50",
+          mono && "mono"
+        )}
       />
     </div>
   );
 }
 
 function Divider() {
-  return <div className="border-t border-[#1e2231]" />;
+  return <Separator className="bg-[#1e2231]" />;
 }
 
 // ─── Preference hook ────────────────────────────────────────────────────────
@@ -213,7 +219,7 @@ function GitHubConnectionPanel() {
 
   return (
     <div className="py-3">
-      <div className="rounded-lg border border-[#1e2231] bg-[#0f1117] p-4">
+      <Card className="border-[#1e2231] bg-[#0f1117] p-4">
         {checking ? (
           <div className="flex items-center gap-2">
             <div className="h-3 w-3 animate-pulse rounded-full bg-slate-600" />
@@ -237,12 +243,14 @@ function GitHubConnectionPanel() {
                   </p>
                 </div>
               </div>
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={checkAuth}
-                className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                className="h-auto px-2 py-1 text-xs text-slate-500 hover:text-slate-300"
               >
                 Refresh
-              </button>
+              </Button>
             </div>
           </>
         ) : (
@@ -262,26 +270,27 @@ function GitHubConnectionPanel() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <button
+              <Button
                 onClick={handleSync}
                 disabled={syncing}
-                className="flex items-center justify-center gap-2 rounded-lg bg-[#24292e] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2f363d] disabled:opacity-50"
+                className="bg-[#24292e] text-white hover:bg-[#2f363d] gap-2"
               >
                 <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
                 </svg>
                 {syncing ? "Connecting..." : "Connect with GitHub CLI (gh)"}
-              </button>
+              </Button>
               <p className="text-[11px] text-slate-600 text-center">
                 Uses your existing <span className="mono">gh auth</span> session
               </p>
 
-              <button
+              <Button
+                variant="link"
                 onClick={() => setShowManualToken(!showManualToken)}
-                className="text-xs text-amber-400 hover:text-amber-300 transition-colors self-center mt-1"
+                className="text-xs text-amber-400 hover:text-amber-300 self-center mt-1"
               >
                 {showManualToken ? "Hide" : "Or enter a token manually"}
-              </button>
+              </Button>
             </div>
           </>
         )}
@@ -292,19 +301,19 @@ function GitHubConnectionPanel() {
             <div className="flex flex-col gap-2">
               <label className="text-xs font-medium text-slate-400">Personal Access Token</label>
               <div className="flex gap-2">
-                <input
+                <Input
                   type="password"
                   value={manualToken}
                   onChange={(e) => setManualToken(e.target.value)}
                   placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                  className="mono flex-1 rounded-lg border border-[#1e2231] bg-[#0a0c12] px-3 py-2 text-sm text-slate-200 placeholder-slate-600 outline-none focus:border-amber-500/50"
+                  className="mono flex-1 rounded-lg border-[#1e2231] bg-[#0a0c12] text-slate-200 placeholder-slate-600 focus-visible:ring-amber-500/50"
                 />
-                <button
+                <Button
                   onClick={handleSaveToken}
-                  className="rounded-lg bg-amber-500 px-4 py-2 text-xs font-medium text-white hover:bg-amber-600 transition-colors"
+                  className="bg-amber-500 text-white hover:bg-amber-600"
                 >
                   Save
-                </button>
+                </Button>
               </div>
               <p className="text-[11px] text-slate-600">
                 Needs <span className="mono">repo</span> scope for private repos.{" "}
@@ -319,7 +328,7 @@ function GitHubConnectionPanel() {
             <p className="text-xs text-red-400">{error}</p>
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }
@@ -385,7 +394,7 @@ function LinearConnectionPanel() {
 
   return (
     <div className="py-3">
-      <div className="rounded-lg border border-[#1e2231] bg-[#0f1117] p-4">
+      <Card className="border-[#1e2231] bg-[#0f1117] p-4">
         {checking ? (
           <div className="flex items-center gap-2">
             <div className="h-3 w-3 animate-pulse rounded-full bg-slate-600" />
@@ -408,12 +417,14 @@ function LinearConnectionPanel() {
                 )}
               </div>
             </div>
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={handleDisconnect}
-              className="text-xs text-slate-500 hover:text-red-400 transition-colors"
+              className="h-auto px-2 py-1 text-xs text-slate-500 hover:text-red-400"
             >
               Disconnect
-            </button>
+            </Button>
           </div>
         ) : (
           <>
@@ -432,25 +443,25 @@ function LinearConnectionPanel() {
             </div>
             <div className="flex flex-col gap-2 mb-3">
               <label className="text-xs font-medium text-slate-400">Linear Client ID</label>
-              <input
+              <Input
                 type="text"
                 value={linearClientId}
                 onChange={(e) => setLinearClientId(e.target.value)}
                 placeholder="your-linear-oauth-client-id"
-                className="mono rounded-lg border border-[#1e2231] bg-[#0a0c12] px-3 py-2 text-sm text-slate-200 placeholder-slate-600 outline-none focus:border-[#5E6AD2]/50"
+                className="mono rounded-lg border-[#1e2231] bg-[#0a0c12] text-slate-200 placeholder-slate-600 focus-visible:ring-[#5E6AD2]/50"
               />
               <p className="text-[11px] text-slate-600">
                 From your Linear OAuth application settings. Can also be set via{" "}
                 <span className="mono">CODEVETTER_LINEAR_CLIENT_ID</span> env var.
               </p>
             </div>
-            <button
+            <Button
               onClick={handleConnect}
               disabled={connecting}
-              className="flex items-center justify-center gap-2 rounded-lg bg-[#5E6AD2] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4C5ABF] disabled:opacity-50 w-full"
+              className="w-full bg-[#5E6AD2] text-white hover:bg-[#4C5ABF]"
             >
               {connecting ? "Connecting..." : "Connect Linear"}
-            </button>
+            </Button>
           </>
         )}
 
@@ -459,7 +470,7 @@ function LinearConnectionPanel() {
             <p className="text-xs text-red-400">{error}</p>
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }
@@ -770,18 +781,20 @@ export default function Settings() {
           {categories.map((cat) => {
             const active = activeCategory === cat.key;
             return (
-              <button
+              <Button
                 key={cat.key}
+                variant="ghost"
                 onClick={() => setActiveCategory(cat.key)}
-                className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] font-medium transition-colors text-left ${
+                className={cn(
+                  "justify-start gap-2.5 h-auto px-2.5 py-2 text-[13px] font-medium",
                   active
-                    ? "bg-amber-500/10 text-amber-400"
+                    ? "bg-amber-500/10 text-amber-400 hover:bg-amber-500/15 hover:text-amber-400"
                     : "text-slate-500 hover:bg-[#1a1d27] hover:text-slate-200"
-                }`}
+                )}
               >
                 <span className="w-4 text-center text-sm">{cat.icon}</span>
                 {cat.label}
-              </button>
+              </Button>
             );
           })}
         </div>

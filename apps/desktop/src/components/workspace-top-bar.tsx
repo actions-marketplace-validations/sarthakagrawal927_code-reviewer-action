@@ -5,6 +5,7 @@ import {
   getGitRemoteInfo,
 } from "@/lib/tauri-ipc";
 import type { WorkspaceRow } from "@/lib/tauri-ipc";
+import { Button } from "@/components/ui/button";
 
 function repoName(repoPath: string): string {
   return repoPath.split("/").filter(Boolean).pop() || repoPath;
@@ -59,12 +60,14 @@ export default function WorkspaceTopBar({
       <div className="flex items-center gap-2 shrink-0">
         {/* Open dropdown */}
         <div className="relative">
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setOpenMenuVisible(!openMenuVisible)}
-            className="rounded border border-[#1e2231] bg-[#0f1117] px-2.5 py-1 text-[11px] text-slate-400 hover:text-slate-200 transition-colors"
+            className="h-auto px-2.5 py-1 text-[11px] border-[#1e2231] bg-[#0f1117] text-slate-400 hover:text-slate-200"
           >
             Open &#9662;
-          </button>
+          </Button>
           {openMenuVisible && (
             <>
               <div
@@ -102,22 +105,29 @@ export default function WorkspaceTopBar({
         </div>
         {/* Create PR button */}
         {!workspace.pr_number && (
-          <button
+          <Button
+            size="sm"
             onClick={onShowCreatePr}
-            className="rounded bg-amber-500 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-amber-600 transition-colors"
+            className="h-auto px-2.5 py-1 text-[11px] font-semibold bg-amber-500 text-white hover:bg-amber-600"
           >
             Create PR
-          </button>
+          </Button>
         )}
         {workspace.pr_number && workspace.pr_url && (
-          <a
-            href={workspace.pr_url}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded bg-amber-500/15 px-2.5 py-1 text-[11px] font-medium text-amber-400 hover:bg-amber-500/25 transition-colors"
+          <Button
+            variant="outline"
+            size="sm"
+            asChild
+            className="h-auto px-2.5 py-1 text-[11px] font-medium text-amber-400 bg-amber-500/15 border-amber-500/20 hover:bg-amber-500/25 hover:text-amber-400"
           >
-            PR #{workspace.pr_number}
-          </a>
+            <a
+              href={workspace.pr_url}
+              target="_blank"
+              rel="noreferrer"
+            >
+              PR #{workspace.pr_number}
+            </a>
+          </Button>
         )}
       </div>
     </div>

@@ -17,6 +17,9 @@ import WorkspaceChat from "@/components/workspace-chat";
 import WorkspaceRightPanel from "@/components/workspace-right-panel";
 import WorkspaceTopBar from "@/components/workspace-top-bar";
 import CreateWorkspaceModal from "@/components/create-workspace-modal";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -83,11 +86,12 @@ function StatusBadge({ status }: { status: string }) {
   const config =
     STATUS_CONFIG[status as WorkspaceStatus] ?? STATUS_CONFIG.backlog;
   return (
-    <span
-      className={`rounded-md px-1.5 py-0.5 text-[9px] font-medium ${config.color} ${config.bg} border ${config.border}`}
+    <Badge
+      variant="outline"
+      className={`text-[9px] font-medium px-1.5 py-0.5 ${config.color} ${config.bg} ${config.border}`}
     >
       {config.label}
-    </span>
+    </Badge>
   );
 }
 
@@ -287,12 +291,14 @@ export default function Workspaces() {
               </span>
             )}
           </div>
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setShowCreate(true)}
-            className="rounded-md bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-400 hover:bg-amber-500/15 transition-colors"
+            className="h-auto px-2.5 py-1 text-[11px] font-medium text-amber-400 bg-amber-500/10 border-amber-500/20 hover:bg-amber-500/15 hover:text-amber-400"
           >
             + New
-          </button>
+          </Button>
         </div>
 
         {/* List */}
@@ -320,12 +326,14 @@ export default function Workspaces() {
               <p className="text-[11px] text-slate-600 mb-3">
                 Create one to start tracking a branch
               </p>
-              <button
+              <Button
+                variant="link"
+                size="sm"
                 onClick={() => setShowCreate(true)}
-                className="text-[11px] text-amber-400 hover:text-amber-300"
+                className="h-auto px-0 py-0 text-[11px] text-amber-400 hover:text-amber-300"
               >
                 Create workspace
-              </button>
+              </Button>
             </div>
           ) : (
             STATUS_ORDER.map((status) => (

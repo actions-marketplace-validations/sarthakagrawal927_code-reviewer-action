@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { setPreference, getPreference } from "@/lib/tauri-ipc";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -165,8 +167,6 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
     [filtered, selectedIndex, onClose]
   );
 
-  if (!isOpen) return null;
-
   // Group the filtered items for rendering
   const groups: { name: string; items: { item: CommandItem; globalIndex: number }[] }[] = [];
   const groupMap = new Map<string, { item: CommandItem; globalIndex: number }[]>();
@@ -182,15 +182,10 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
   });
 
   return (
-    // Overlay
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 backdrop-blur-sm pt-[15vh]"
-      onClick={onClose}
-    >
-      {/* Modal */}
-      <div
-        className="max-w-lg w-full bg-[#13151c] border border-[#1e2231] rounded-xl shadow-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent
+        hideClose
+        className="max-w-lg p-0 bg-[#13151c] border border-[#1e2231] rounded-xl shadow-2xl overflow-hidden top-[30%] translate-y-0"
         onKeyDown={handleKeyDown}
       >
         {/* Search input */}
@@ -257,7 +252,7 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
             </div>
           ))}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

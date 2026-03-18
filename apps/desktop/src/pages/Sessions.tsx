@@ -3,6 +3,9 @@ import { useSearchParams } from "react-router-dom";
 import SessionCard from "@/components/session-card";
 import SearchBar from "@/components/search-bar";
 import ChatViewer from "@/components/chat-viewer";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import {
   listSessions,
   getSession,
@@ -559,12 +562,14 @@ export default function Sessions() {
             </div>
             <div className="relative flex items-center gap-1.5">
               {mergeMode && (
-                <button
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={handleCancelMerge}
-                  className="rounded px-2 py-1 text-[11px] font-medium bg-amber-500/10 text-amber-400 transition-colors"
+                  className="h-auto px-2 py-1 text-[11px] font-medium bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20"
                 >
                   Cancel merge
-                </button>
+                </Button>
               )}
               <button
                 onClick={() => setShowMenu((v) => !v)}
@@ -626,38 +631,44 @@ export default function Sessions() {
           <div className="flex items-center gap-1 flex-wrap text-[11px]">
             {(["all", "claude-code", "codex"] as AgentFilter[]).map(
               (filter) => (
-                <button
+                <Button
                   key={filter}
+                  variant="outline"
+                  size="sm"
                   onClick={() => setAgentFilter(filter)}
-                  className={`rounded px-2 py-0.5 font-medium transition-colors ${
+                  className={cn(
+                    "h-auto px-2 py-0.5 text-[11px] font-medium border-0",
                     agentFilter === filter
                       ? "bg-[#1e2231] text-slate-200"
-                      : "text-slate-500 hover:text-slate-300"
-                  }`}
+                      : "bg-transparent text-slate-500 hover:text-slate-300"
+                  )}
                 >
                   {filter === "all"
                     ? "All"
                     : filter === "claude-code"
                     ? "Claude"
                     : "Codex"}
-                </button>
+                </Button>
               )
             )}
 
             <span className="mx-1 h-3 w-px bg-[#1e2231]" />
 
             {(["30d", "90d", "all"] as TimeRange[]).map((range) => (
-              <button
+              <Button
                 key={range}
+                variant="outline"
+                size="sm"
                 onClick={() => setTimeRange(range)}
-                className={`rounded px-2 py-0.5 font-medium transition-colors ${
+                className={cn(
+                  "h-auto px-2 py-0.5 text-[11px] font-medium border-0",
                   timeRange === range
                     ? "bg-[#1e2231] text-slate-200"
-                    : "text-slate-500 hover:text-slate-300"
-                }`}
+                    : "bg-transparent text-slate-500 hover:text-slate-300"
+                )}
               >
                 {range === "all" ? "All time" : range}
-              </button>
+              </Button>
             ))}
 
             {projectIds.length > 1 && (
@@ -802,13 +813,15 @@ export default function Sessions() {
                 </p>
               )}
               {hasMoreSessions && (
-                <button
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={loadMoreSessions}
                   disabled={loadingMore}
-                  className="w-full py-2 text-center text-[11px] text-slate-500 hover:text-slate-300 transition-colors disabled:opacity-50"
+                  className="w-full h-auto py-2 text-[11px] text-slate-500 hover:text-slate-300"
                 >
                   {loadingMore ? "Loading..." : "Load more sessions"}
-                </button>
+                </Button>
               )}
             </div>
           )}
@@ -818,20 +831,21 @@ export default function Sessions() {
         {mergeMode && selectedSessionIds.size >= 2 && (
           <div className="border-t border-[#1e2231] bg-[#13151c] p-2">
             {!showMergeForm ? (
-              <button
+              <Button
+                variant="outline"
                 onClick={() => setShowMergeForm(true)}
-                className="w-full rounded px-3 py-2 text-[12px] font-medium text-amber-400 bg-amber-500/10 hover:bg-amber-500/15 transition-colors"
+                className="w-full h-auto px-3 py-2 text-[12px] font-medium text-amber-400 bg-amber-500/10 border-amber-500/20 hover:bg-amber-500/15"
               >
                 Merge {selectedSessionIds.size} sessions
-              </button>
+              </Button>
             ) : (
               <div className="flex flex-col gap-1.5">
-                <input
+                <Input
                   type="text"
                   placeholder="Name (optional)"
                   value={mergeName}
                   onChange={(e) => setMergeName(e.target.value)}
-                  className="w-full rounded border border-[#1e2231] bg-[#0f1117] px-2.5 py-1.5 text-[12px] text-slate-200 placeholder-slate-600 outline-none focus:border-amber-500/50"
+                  className="h-auto px-2.5 py-1.5 text-[12px] border-[#1e2231] bg-[#0f1117] focus-visible:ring-amber-500/50"
                   autoFocus
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleMerge();
@@ -839,19 +853,21 @@ export default function Sessions() {
                   }}
                 />
                 <div className="flex gap-1.5">
-                  <button
+                  <Button
+                    variant="outline"
                     onClick={handleMerge}
                     disabled={isMerging}
-                    className="flex-1 rounded bg-amber-500/10 px-3 py-1.5 text-[12px] font-medium text-amber-400 hover:bg-amber-500/15 transition-colors disabled:opacity-50"
+                    className="flex-1 h-auto px-3 py-1.5 text-[12px] font-medium text-amber-400 bg-amber-500/10 border-amber-500/20 hover:bg-amber-500/15"
                   >
                     {isMerging ? "Merging..." : "Confirm"}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="secondary"
                     onClick={() => setShowMergeForm(false)}
-                    className="rounded bg-[#1e2231] px-3 py-1.5 text-[12px] text-slate-400 hover:text-slate-300 transition-colors"
+                    className="h-auto px-3 py-1.5 text-[12px] bg-[#1e2231] text-slate-400 hover:text-slate-300"
                   >
                     Back
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
