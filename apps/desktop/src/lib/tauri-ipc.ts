@@ -287,8 +287,8 @@ export async function startLocalReview(
   tone?: ReviewTone
 ): Promise<{ review_id: string; status: string; diff_bytes: number }> {
   return safeInvoke("start_local_review", {
-    repo_path: repoPath,
-    diff_range: diffRange ?? null,
+    repoPath: repoPath,
+    diffRange: diffRange ?? null,
     tone: tone ?? null,
   });
 }
@@ -302,7 +302,7 @@ export async function startPrReview(
   return safeInvoke("start_pr_review", {
     owner,
     repo,
-    pr_number: prNumber,
+    prNumber: prNumber,
     tone: tone ?? null,
   });
 }
@@ -369,13 +369,13 @@ export async function listSessionSubagents(
 ): Promise<SubagentSummary[]> {
   const resp = await safeInvoke<{ subagents: SubagentSummary[] }>(
     "list_session_subagents",
-    { session_id: sessionId, project_path: projectPath }
+    { sessionId: sessionId, projectPath: projectPath }
   );
   return resp.subagents;
 }
 
 export async function deleteSession(sessionId: string): Promise<{ deleted: boolean }> {
-  return safeInvoke("delete_session", { session_id: sessionId });
+  return safeInvoke("delete_session", { sessionId: sessionId });
 }
 
 // ─── Session Merge Commands ──────────────────────────────────────────────────
@@ -386,9 +386,9 @@ export async function mergeSessions(
   mergedName?: string
 ): Promise<{ merged_session_id: string }> {
   return safeInvoke("merge_sessions", {
-    session_ids: sessionIds,
-    target_project_id: targetProjectId,
-    merged_name: mergedName ?? null,
+    sessionIds: sessionIds,
+    targetProjectId: targetProjectId,
+    mergedName: mergedName ?? null,
   });
 }
 
@@ -397,8 +397,8 @@ export async function mergeProjects(
   targetProjectId: string
 ): Promise<{ moved_sessions: number }> {
   return safeInvoke("merge_projects", {
-    source_project_ids: sourceProjectIds,
-    target_project_id: targetProjectId,
+    sourceProjectIds: sourceProjectIds,
+    targetProjectId: targetProjectId,
   });
 }
 
@@ -431,17 +431,17 @@ export async function launchAgent(
 }> {
   return safeInvoke("launch_agent", {
     adapter,
-    project_path: projectPath,
+    projectPath: projectPath,
     role: role ?? null,
     task: task ?? null,
-    review_id: reviewId ?? null,
+    reviewId: reviewId ?? null,
   });
 }
 
 export async function stopAgent(
   agentId: string
 ): Promise<{ agent_id: string; status: string }> {
-  return safeInvoke("stop_agent", { agent_id: agentId });
+  return safeInvoke("stop_agent", { agentId: agentId });
 }
 
 export async function listAgents(): Promise<AgentProcess[]> {
@@ -481,8 +481,8 @@ export async function createTask(
   return safeInvoke("create_task", {
     title,
     description,
-    acceptance_criteria: acceptanceCriteria ?? null,
-    project_path: projectPath ?? null,
+    acceptanceCriteria: acceptanceCriteria ?? null,
+    projectPath: projectPath ?? null,
   });
 }
 
@@ -494,7 +494,7 @@ export async function updateTask(
   return safeInvoke("update_task", {
     id,
     status: status ?? null,
-    assigned_agent: assignedAgent ?? null,
+    assignedAgent: assignedAgent ?? null,
   });
 }
 
@@ -512,7 +512,7 @@ export async function listActivity(
   limit?: number
 ): Promise<ActivityEvent[]> {
   const resp = await safeInvoke<{ activity: ActivityEvent[] }>("list_activity", {
-    agent_id: agentId ?? null,
+    agentId: agentId ?? null,
     limit: limit ?? 50,
   });
   return resp.activity;
@@ -526,7 +526,7 @@ export async function sendAgentMessage(
   mentions?: string[]
 ): Promise<void> {
   return safeInvoke("send_agent_message", {
-    thread_id: threadId,
+    threadId: threadId,
     content,
     mentions: mentions ?? null,
   });
@@ -551,7 +551,7 @@ export async function listThreadMessages(
 ): Promise<AgentMessage[]> {
   const resp = await safeInvoke<{ messages: AgentMessage[] }>(
     "list_thread_messages",
-    { thread_id: threadId, limit: limit ?? 100 }
+    { threadId: threadId, limit: limit ?? 100 }
   );
   return resp.messages;
 }
@@ -622,15 +622,15 @@ export async function createAgentPreset(preset: {
     name: preset.name,
     adapter: preset.adapter,
     role: preset.role ?? null,
-    system_prompt: preset.systemPrompt ?? null,
+    systemPrompt: preset.systemPrompt ?? null,
     model: preset.model ?? null,
-    max_turns: preset.maxTurns ?? null,
-    allowed_tools: preset.allowedTools ?? null,
-    output_format: preset.outputFormat ?? null,
-    print_mode: preset.printMode ?? false,
-    no_session_persist: preset.noSessionPersist ?? false,
-    approval_mode: preset.approvalMode ?? null,
-    quiet_mode: preset.quietMode ?? false,
+    maxTurns: preset.maxTurns ?? null,
+    allowedTools: preset.allowedTools ?? null,
+    outputFormat: preset.outputFormat ?? null,
+    printMode: preset.printMode ?? false,
+    noSessionPersist: preset.noSessionPersist ?? false,
+    approvalMode: preset.approvalMode ?? null,
+    quietMode: preset.quietMode ?? false,
   });
 }
 
@@ -654,15 +654,15 @@ export async function updateAgentPreset(preset: {
     name: preset.name,
     adapter: preset.adapter,
     role: preset.role ?? null,
-    system_prompt: preset.systemPrompt ?? null,
+    systemPrompt: preset.systemPrompt ?? null,
     model: preset.model ?? null,
-    max_turns: preset.maxTurns ?? null,
-    allowed_tools: preset.allowedTools ?? null,
-    output_format: preset.outputFormat ?? null,
-    print_mode: preset.printMode ?? false,
-    no_session_persist: preset.noSessionPersist ?? false,
-    approval_mode: preset.approvalMode ?? null,
-    quiet_mode: preset.quietMode ?? false,
+    maxTurns: preset.maxTurns ?? null,
+    allowedTools: preset.allowedTools ?? null,
+    outputFormat: preset.outputFormat ?? null,
+    printMode: preset.printMode ?? false,
+    noSessionPersist: preset.noSessionPersist ?? false,
+    approvalMode: preset.approvalMode ?? null,
+    quietMode: preset.quietMode ?? false,
   });
 }
 
@@ -729,10 +729,10 @@ export async function createProviderAccount(opts: {
   return safeInvoke("create_provider_account", {
     name: opts.name,
     provider: opts.provider,
-    api_key: opts.apiKey ?? null,
-    monthly_limit: opts.monthlyLimit ?? null,
+    apiKey: opts.apiKey ?? null,
+    monthlyLimit: opts.monthlyLimit ?? null,
     plan: opts.plan ?? null,
-    weekly_limit: opts.weeklyLimit ?? null,
+    weeklyLimit: opts.weeklyLimit ?? null,
   });
 }
 
@@ -749,10 +749,10 @@ export async function updateProviderAccount(opts: {
     id: opts.id,
     name: opts.name,
     provider: opts.provider,
-    api_key: opts.apiKey ?? null,
-    monthly_limit: opts.monthlyLimit ?? null,
+    apiKey: opts.apiKey ?? null,
+    monthlyLimit: opts.monthlyLimit ?? null,
     plan: opts.plan ?? null,
-    weekly_limit: opts.weeklyLimit ?? null,
+    weeklyLimit: opts.weeklyLimit ?? null,
   });
 }
 
@@ -761,7 +761,7 @@ export async function deleteProviderAccount(id: string): Promise<void> {
 }
 
 export async function checkAccountUsage(accountId: string): Promise<AccountUsage> {
-  return safeInvoke("check_account_usage", { account_id: accountId });
+  return safeInvoke("check_account_usage", { accountId: accountId });
 }
 
 export interface RateLimitWindow {
@@ -786,7 +786,7 @@ export interface LiveUsageResult {
 }
 
 export async function checkLiveUsage(provider: string, credentialKey?: string): Promise<LiveUsageResult> {
-  return safeInvoke("check_live_usage", { provider, credential_key: credentialKey ?? null });
+  return safeInvoke("check_live_usage", { provider, credentialKey: credentialKey ?? null });
 }
 
 export interface DetectedAccountInfo {
@@ -833,7 +833,7 @@ export interface GitBranchesResult {
 export async function listGitBranches(
   repoPath: string
 ): Promise<GitBranchesResult> {
-  return safeInvoke("list_git_branches", { repo_path: repoPath });
+  return safeInvoke("list_git_branches", { repoPath: repoPath });
 }
 
 export interface GitRemoteInfo {
@@ -845,7 +845,7 @@ export interface GitRemoteInfo {
 export async function getGitRemoteInfo(
   repoPath: string
 ): Promise<GitRemoteInfo> {
-  return safeInvoke("get_git_remote_info", { repo_path: repoPath });
+  return safeInvoke("get_git_remote_info", { repoPath: repoPath });
 }
 
 export interface PullRequest {
@@ -860,7 +860,7 @@ export async function listPullRequests(
 ): Promise<PullRequest[]> {
   const resp = await safeInvoke<{ pull_requests: PullRequest[] }>(
     "list_pull_requests",
-    { repo_path: repoPath }
+    { repoPath: repoPath }
   );
   return resp.pull_requests;
 }
@@ -996,7 +996,7 @@ export async function listWorkspaces(
 ): Promise<WorkspaceRow[]> {
   const resp = await safeInvoke<{ workspaces: WorkspaceRow[] }>(
     "list_workspaces",
-    { status_filter: statusFilter ?? null }
+    { statusFilter: statusFilter ?? null }
   );
   return resp.workspaces;
 }
@@ -1010,10 +1010,10 @@ export async function createWorkspace(opts: {
 }): Promise<{ id: string; workspace: WorkspaceRow }> {
   return safeInvoke("create_workspace", {
     name: opts.name,
-    repo_path: opts.repoPath,
+    repoPath: opts.repoPath,
     branch: opts.branch,
-    pr_number: opts.prNumber ?? null,
-    pr_url: opts.prUrl ?? null,
+    prNumber: opts.prNumber ?? null,
+    prUrl: opts.prUrl ?? null,
   });
 }
 
@@ -1037,9 +1037,9 @@ export async function updateWorkspace(opts: {
     name: opts.name ?? null,
     branch: opts.branch ?? null,
     status: opts.status ?? null,
-    session_id: opts.sessionId ?? null,
-    pr_number: opts.prNumber ?? null,
-    pr_url: opts.prUrl ?? null,
+    sessionId: opts.sessionId ?? null,
+    prNumber: opts.prNumber ?? null,
+    prUrl: opts.prUrl ?? null,
   });
 }
 
@@ -1085,7 +1085,7 @@ export async function createChatTab(
 ): Promise<ChatTab> {
   return safeInvoke("create_chat_tab", {
     title: title ?? null,
-    project_path: projectPath ?? null,
+    projectPath: projectPath ?? null,
     model: model ?? null,
   });
 }
@@ -1097,9 +1097,9 @@ export async function updateChatTab(
   await safeInvoke("update_chat_tab", {
     id,
     title: patch.title ?? null,
-    session_id: patch.session_id ?? null,
+    sessionId: patch.session_id ?? null,
     model: patch.model ?? null,
-    project_path: patch.project_path ?? null,
+    projectPath: patch.project_path ?? null,
   });
 }
 
@@ -1108,7 +1108,7 @@ export async function deleteChatTab(id: string): Promise<void> {
 }
 
 export async function reorderChatTabs(tabIds: string[]): Promise<void> {
-  await safeInvoke("reorder_chat_tabs", { tab_ids: tabIds });
+  await safeInvoke("reorder_chat_tabs", { tabIds: tabIds });
 }
 
 // ─── Chat Commands ──────────────────────────────────────────────────────────
@@ -1127,8 +1127,8 @@ export async function sendChatMessage(
 ): Promise<{ chat_id: string; status: string }> {
   return safeInvoke("send_chat_message", {
     message,
-    session_id: sessionId ?? null,
-    project_path: projectPath ?? null,
+    sessionId: sessionId ?? null,
+    projectPath: projectPath ?? null,
     model: model ?? null,
   });
 }
@@ -1187,7 +1187,7 @@ export async function listLinearIssues(): Promise<{ issues: LinearIssue[] }> {
 }
 
 export async function importLinearIssues(issueIds: string[]): Promise<{ imported: number }> {
-  return safeInvoke("import_linear_issues", { issue_ids: issueIds });
+  return safeInvoke("import_linear_issues", { issueIds: issueIds });
 }
 
 // ─── File Tree Commands ──────────────────────────────────────────────────
@@ -1211,8 +1211,8 @@ export async function listDirectoryTree(
   maxDepth?: number
 ): Promise<{ entries: FileEntry[] }> {
   return safeInvoke("list_directory_tree", {
-    repo_path: repoPath,
-    max_depth: maxDepth ?? null,
+    repoPath: repoPath,
+    maxDepth: maxDepth ?? null,
   });
 }
 
@@ -1221,8 +1221,8 @@ export async function readFilePreview(
   maxLines?: number
 ): Promise<FilePreview> {
   return safeInvoke("read_file_preview", {
-    file_path: filePath,
-    max_lines: maxLines ?? null,
+    filePath: filePath,
+    maxLines: maxLines ?? null,
   });
 }
 
@@ -1230,7 +1230,7 @@ export async function openInApp(
   appName: string,
   path: string
 ): Promise<{ success: boolean }> {
-  return safeInvoke("open_in_app", { app_name: appName, path });
+  return safeInvoke("open_in_app", { appName: appName, path });
 }
 
 // ─── System Monitor ─────────────────────────────────────────────────────────
@@ -1289,11 +1289,11 @@ export async function createPullRequest(
   headBranch: string
 ): Promise<{ url: string; number: number; html_url: string }> {
   return safeInvoke("create_pull_request", {
-    repo_path: repoPath,
+    repoPath: repoPath,
     title,
     body,
-    base_branch: baseBranch,
-    head_branch: headBranch,
+    baseBranch: baseBranch,
+    headBranch: headBranch,
   });
 }
 
@@ -1302,7 +1302,7 @@ export async function listPullRequestsForRepo(
   state?: string
 ): Promise<{ prs: PullRequestInfo[] }> {
   return safeInvoke("list_pull_requests_for_repo", {
-    repo_path: repoPath,
+    repoPath: repoPath,
     state: state ?? null,
   });
 }
@@ -1311,7 +1311,7 @@ export async function getPullRequest(
   repoPath: string,
   prNumber: number
 ): Promise<PullRequestInfo> {
-  return safeInvoke("get_pull_request", { repo_path: repoPath, pr_number: prNumber });
+  return safeInvoke("get_pull_request", { repoPath: repoPath, prNumber: prNumber });
 }
 
 export async function mergePullRequest(
@@ -1319,21 +1319,21 @@ export async function mergePullRequest(
   prNumber: number,
   method: string
 ): Promise<{ success: boolean }> {
-  return safeInvoke("merge_pull_request", { repo_path: repoPath, pr_number: prNumber, method });
+  return safeInvoke("merge_pull_request", { repoPath: repoPath, prNumber: prNumber, method });
 }
 
 export async function listCiChecks(
   repoPath: string,
   prNumber: number
 ): Promise<{ checks: CICheck[] }> {
-  return safeInvoke("list_ci_checks", { repo_path: repoPath, pr_number: prNumber });
+  return safeInvoke("list_ci_checks", { repoPath: repoPath, prNumber: prNumber });
 }
 
 export async function rerunFailedChecks(
   repoPath: string,
   prNumber: number
 ): Promise<{ success: boolean; rerun_count: number }> {
-  return safeInvoke("rerun_failed_checks", { repo_path: repoPath, pr_number: prNumber });
+  return safeInvoke("rerun_failed_checks", { repoPath: repoPath, prNumber: prNumber });
 }
 
 // ─── Terminal Commands ──────────────────────────────────────────────────────
@@ -1342,14 +1342,14 @@ export async function spawnTerminal(
   cwd: string,
   terminalId: string
 ): Promise<{ terminal_id: string }> {
-  return safeInvoke("spawn_terminal", { cwd, terminal_id: terminalId });
+  return safeInvoke("spawn_terminal", { cwd, terminalId: terminalId });
 }
 
 export async function writeTerminal(
   terminalId: string,
   data: string
 ): Promise<void> {
-  return safeInvoke("write_terminal", { terminal_id: terminalId, data });
+  return safeInvoke("write_terminal", { terminalId: terminalId, data });
 }
 
 export async function resizeTerminal(
@@ -1357,11 +1357,11 @@ export async function resizeTerminal(
   cols: number,
   rows: number
 ): Promise<void> {
-  return safeInvoke("resize_terminal", { terminal_id: terminalId, cols, rows });
+  return safeInvoke("resize_terminal", { terminalId: terminalId, cols, rows });
 }
 
 export async function closeTerminal(terminalId: string): Promise<void> {
-  return safeInvoke("close_terminal", { terminal_id: terminalId });
+  return safeInvoke("close_terminal", { terminalId: terminalId });
 }
 
 export function onTerminalOutput(
@@ -1421,7 +1421,7 @@ export async function createReviewDoc(
   repoPath: string,
   branch: string
 ): Promise<{ review_id: string }> {
-  return safeInvoke("create_review_doc", { repo_path: repoPath, branch });
+  return safeInvoke("create_review_doc", { repoPath: repoPath, branch });
 }
 
 /** Get the full state of a coordinated review. */
@@ -1429,7 +1429,7 @@ export async function getReviewState(
   reviewId: string,
   repoPath: string
 ): Promise<ReviewStateCRDT> {
-  return safeInvoke("get_review_state", { review_id: reviewId, repo_path: repoPath });
+  return safeInvoke("get_review_state", { reviewId: reviewId, repoPath: repoPath });
 }
 
 /** Claim a file for an agent. Returns whether the claim succeeded. */
@@ -1439,7 +1439,7 @@ export async function claimFile(
   agentId: string,
   file: string
 ): Promise<{ claimed: boolean }> {
-  return safeInvoke("claim_file", { review_id: reviewId, repo_path: repoPath, agent_id: agentId, file });
+  return safeInvoke("claim_file", { reviewId: reviewId, repoPath: repoPath, agentId: agentId, file });
 }
 
 /** Add a finding to a coordinated review. */
@@ -1448,7 +1448,7 @@ export async function addCoordinatedFinding(
   repoPath: string,
   finding: Omit<ReviewFindingCRDT, "id" | "timestamp">
 ): Promise<void> {
-  await safeInvoke("add_finding", { review_id: reviewId, repo_path: repoPath, finding });
+  await safeInvoke("add_finding", { reviewId: reviewId, repoPath: repoPath, finding });
 }
 
 /** Update an agent's status within a coordinated review. */
@@ -1458,7 +1458,7 @@ export async function updateCoordinatedAgentStatus(
   agentId: string,
   status: AgentStatusCRDT
 ): Promise<void> {
-  await safeInvoke("update_agent_status", { review_id: reviewId, repo_path: repoPath, agent_id: agentId, status });
+  await safeInvoke("update_agent_status", { reviewId: reviewId, repoPath: repoPath, agentId: agentId, status });
 }
 
 /** A single merged finding with deduplication metadata. */
@@ -1489,7 +1489,7 @@ export async function finalizeReview(
   reviewId: string,
   repoPath: string
 ): Promise<MergedReviewResult> {
-  return safeInvoke("finalize_review", { review_id: reviewId, repo_path: repoPath });
+  return safeInvoke("finalize_review", { reviewId: reviewId, repoPath: repoPath });
 }
 
 // ─── Coordination Events ─────────────────────────────────────────────────────
@@ -1531,14 +1531,14 @@ export interface GitChangedFile {
 export async function getGitChangedFiles(
   repoPath: string
 ): Promise<{ files: GitChangedFile[] }> {
-  return safeInvoke("get_git_changed_files", { repo_path: repoPath });
+  return safeInvoke("get_git_changed_files", { repoPath: repoPath });
 }
 
 export async function getFileDiff(
   repoPath: string,
   filePath: string
 ): Promise<{ diff: string }> {
-  return safeInvoke("get_file_diff", { repo_path: repoPath, file_path: filePath });
+  return safeInvoke("get_file_diff", { repoPath: repoPath, filePath: filePath });
 }
 
 export async function listDiffComments(
@@ -1546,7 +1546,7 @@ export async function listDiffComments(
 ): Promise<DiffComment[]> {
   const resp = await safeInvoke<{ comments: DiffComment[] }>(
     "list_diff_comments",
-    { workspace_id: workspaceId }
+    { workspaceId: workspaceId }
   );
   return resp.comments;
 }
@@ -1559,10 +1559,10 @@ export async function createDiffComment(opts: {
   content: string;
 }): Promise<DiffComment> {
   return safeInvoke("create_diff_comment", {
-    workspace_id: opts.workspaceId,
-    file_path: opts.filePath,
-    start_line: opts.startLine,
-    end_line: opts.endLine,
+    workspaceId: opts.workspaceId,
+    filePath: opts.filePath,
+    startLine: opts.startLine,
+    endLine: opts.endLine,
     content: opts.content,
   });
 }
@@ -1606,7 +1606,7 @@ export async function generatePlaywrightTest(
   return safeInvoke("generate_playwright_test", {
     url,
     description,
-    project_path: projectPath ?? null,
+    projectPath: projectPath ?? null,
   });
 }
 
@@ -1620,8 +1620,8 @@ export async function runPlaywrightTest(
   stderr: string;
 }> {
   return safeInvoke("run_playwright_test", {
-    test_file: testFile,
-    project_path: projectPath ?? null,
+    testFile: testFile,
+    projectPath: projectPath ?? null,
   });
 }
 
@@ -1632,8 +1632,8 @@ export async function iteratePlaywrightTest(
   description: string,
 ): Promise<{ request_id: string; test_file: string; status: string }> {
   return safeInvoke("iterate_playwright_test", {
-    test_file: testFile,
-    error_message: errorMessage,
+    testFile: testFile,
+    errorMessage: errorMessage,
     url,
     description,
   });
@@ -1679,7 +1679,7 @@ export async function createAgentPersona(
     description,
     color,
     tools,
-    system_prompt: systemPrompt,
+    systemPrompt: systemPrompt,
   });
 }
 
@@ -1701,7 +1701,7 @@ export async function updateAgentPersona(
     description: opts.description ?? null,
     color: opts.color ?? null,
     tools: opts.tools ?? null,
-    system_prompt: opts.systemPrompt ?? null,
+    systemPrompt: opts.systemPrompt ?? null,
   });
 }
 
