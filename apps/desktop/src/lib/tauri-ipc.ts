@@ -412,15 +412,7 @@ export async function getIndexStats(): Promise<IndexStats> {
   return safeInvoke<IndexStats>("get_index_stats");
 }
 
-export interface CursorDetectResult {
-  installed: boolean;
-  path: string;
-  has_workspaces: boolean;
-}
 
-export async function detectCursor(): Promise<CursorDetectResult> {
-  return safeInvoke<CursorDetectResult>("detect_cursor");
-}
 
 // ─── Agent Commands ──────────────────────────────────────────────────────────
 
