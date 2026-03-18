@@ -96,6 +96,17 @@
 - [ ] Re-verify API + review worker deployments
 - [ ] Apply 0003_indexing_tables.sql migration to production CockroachDB
 
+### Symphony-Style Agent Orchestration
+Inspired by [OpenAI Symphony](https://github.com/openai/symphony). Cherry-pick the good patterns:
+- [ ] WORKFLOW.md per-repo — version agent prompt + settings with the code
+- [ ] Auto-polling Linear — continuous 30s polling instead of manual import
+- [ ] Retry with exponential backoff — auto-retry failed agent runs
+- [ ] Reconciliation — stop agents when Linear issues are closed/terminal
+- [ ] Per-issue workspace isolation (already have Workspaces, need auto-creation from issues)
+- [ ] Concurrency limits (global + per-state)
+- [ ] Multi-turn agent sessions (agent continues until issue is done, not just one response)
+- [ ] Optional: Codex app-server protocol support alongside Claude CLI
+
 ### Future Exploration
 - [ ] Go sidecar for heavy processing (if needed at scale)
 - [ ] Durable workflows for long-running reviews (if needed)
