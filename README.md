@@ -1,3 +1,5 @@
+![CI](https://github.com/sarthakagrawal927/code-reviewer-action/actions/workflows/ci.yml/badge.svg)
+
 # AI Code Reviewer (Enterprise v1)
 
 Enterprise control plane for GitHub-backed PR review automation.
