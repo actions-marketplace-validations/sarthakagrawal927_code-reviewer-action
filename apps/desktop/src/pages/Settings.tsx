@@ -773,9 +773,9 @@ export default function Settings() {
   }
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full overflow-hidden">
       {/* Sidebar */}
-      <nav className="flex w-48 shrink-0 flex-col border-r border-[#1e2231] bg-[#0f1117] py-6 px-3">
+      <nav className="flex w-48 shrink-0 flex-col border-r border-[#1e2231] bg-[#0f1117] py-6 px-3 overflow-y-auto">
         <h1 className="mb-6 px-2 text-lg font-bold text-slate-100">Settings</h1>
         <div className="flex flex-col gap-0.5">
           {categories.map((cat) => {
@@ -805,7 +805,7 @@ export default function Settings() {
       </nav>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-8">
+      <div className="flex-1 min-w-0 overflow-y-auto p-8">
         <div className="max-w-xl">{renderContent()}</div>
       </div>
     </div>

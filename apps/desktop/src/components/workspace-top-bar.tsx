@@ -49,13 +49,13 @@ export default function WorkspaceTopBar({
 
   return (
     <div className="flex items-center justify-between border-b border-[#1e2231] bg-[#0e0f13] px-4 py-2 shrink-0">
-      <div className="flex items-center gap-1 text-[12px] min-w-0">
-        <span className="text-slate-500">&#128193;</span>
+      <div className="flex items-center gap-1 text-[12px] min-w-0 overflow-hidden">
+        <span className="text-slate-500 shrink-0">&#128193;</span>
         <span className="text-slate-400 truncate">{repoDisplay}</span>
-        <span className="text-slate-600 mx-1">{">"}</span>
-        <span className="text-slate-200 font-medium">{workspace.branch}</span>
-        <span className="text-slate-600 mx-1">{">"}</span>
-        <span className="text-slate-400 font-mono">/{folderName}</span>
+        <span className="text-slate-600 mx-1 shrink-0">{">"}</span>
+        <span className="text-slate-200 font-medium truncate">{workspace.branch}</span>
+        <span className="text-slate-600 mx-1 shrink-0">{">"}</span>
+        <span className="text-slate-400 font-mono truncate">/{folderName}</span>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {/* Open dropdown */}

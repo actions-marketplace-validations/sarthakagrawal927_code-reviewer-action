@@ -155,8 +155,8 @@ export default function Sidebar() {
         {/* Separator */}
         <Separator orientation="vertical" className="mx-1 h-5 bg-[#1e2231]" />
 
-        {/* Current page name */}
-        <span className="ml-1 text-[11px] font-medium text-slate-500">
+        {/* Current page name — hidden at very narrow widths */}
+        <span className="ml-1 text-[11px] font-medium text-slate-500 hidden sm:inline">
           {currentPage}
         </span>
       </nav>

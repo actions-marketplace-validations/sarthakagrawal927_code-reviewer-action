@@ -276,9 +276,9 @@ export default function Workspaces() {
   // ─── Render ──────────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full overflow-hidden">
       {/* Left panel: workspace list */}
-      <div className="flex w-[280px] shrink-0 flex-col border-r border-[#1e2231]">
+      <div className="flex w-[280px] min-w-[200px] shrink-0 flex-col border-r border-[#1e2231] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#1e2231] px-3 py-3">
           <div className="flex items-center gap-2">
@@ -381,7 +381,7 @@ export default function Workspaces() {
               {/* Right panel toggle + panel */}
               <div
                 className={`shrink-0 border-l border-[#1e2231] transition-all ${
-                  showRightPanel ? "w-[280px]" : "w-0"
+                  showRightPanel ? "w-[280px] min-w-[200px]" : "w-0"
                 } overflow-hidden`}
               >
                 {showRightPanel && (

@@ -28,7 +28,7 @@ export default function AgentCard({ agent, selected, onStop, onClick }: AgentCar
   return (
     <div
       onClick={onClick}
-      className={`flex flex-col gap-3 rounded-xl border p-4 transition-colors ${
+      className={`flex flex-col gap-3 rounded-xl border p-4 transition-colors overflow-hidden ${
         onClick ? "cursor-pointer" : ""
       } ${
         selected

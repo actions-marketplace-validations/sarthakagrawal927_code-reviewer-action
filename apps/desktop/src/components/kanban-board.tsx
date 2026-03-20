@@ -33,8 +33,8 @@ function TaskCard({
   onAssign?: () => void;
 }) {
   return (
-    <Card className="group/task w-full border-[#1e2231] bg-[#0f1117] transition-all hover:border-[#2d3348] hover:bg-[#13151c]">
-      <CardContent className="p-3">
+    <Card className="group/task w-full border-[#1e2231] bg-[#0f1117] transition-all hover:border-[#2d3348] hover:bg-[#13151c] overflow-hidden">
+      <CardContent className="p-3 min-w-0">
         <div className="cursor-pointer" onClick={onClick}>
           <h5 className="text-xs font-medium text-slate-200 line-clamp-2">
             {task.title}
@@ -76,7 +76,7 @@ function TaskCard({
 
 export default function KanbanBoard({ tasks, onTaskClick, onAddTask, onAssignAgent }: KanbanBoardProps) {
   return (
-    <div className="grid grid-cols-4 gap-3">
+    <div className="grid grid-cols-4 gap-3 min-w-[600px]">
       {columns.map((col) => {
         const colTasks = tasks.filter((t) => {
           if (t.status === col.id) return true;

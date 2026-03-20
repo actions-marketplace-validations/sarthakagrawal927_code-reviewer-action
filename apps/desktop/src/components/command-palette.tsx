@@ -185,7 +185,7 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent
         hideClose
-        className="max-w-lg p-0 bg-[#13151c] border border-[#1e2231] rounded-xl shadow-2xl overflow-hidden top-[30%] translate-y-0"
+        className="max-w-lg mx-4 p-0 bg-[#13151c] border border-[#1e2231] rounded-xl shadow-2xl overflow-hidden top-[30%] translate-y-0"
         onKeyDown={handleKeyDown}
       >
         {/* Search input */}

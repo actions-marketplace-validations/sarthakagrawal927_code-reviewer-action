@@ -147,7 +147,7 @@ function FileTreePanel({ workspace }: { workspace: WorkspaceRow }) {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* File preview modal */}
       {previewFile && (
         <div className="border-b border-[#1e2231] bg-[#0a0b0f]">
@@ -202,7 +202,7 @@ function FileTreePanel({ workspace }: { workspace: WorkspaceRow }) {
               <button
                 key={entry.path}
                 onClick={() => handleFileClick(entry)}
-                className={`w-full flex items-center gap-1.5 px-2 py-0.5 text-[12px] hover:bg-[#1a1d27] transition-colors text-left ${
+                className={`w-full flex items-center gap-1.5 px-2 py-0.5 text-[12px] hover:bg-[#1a1d27] transition-colors text-left overflow-hidden ${
                   previewFile === entry.path
                     ? "bg-amber-500/5"
                     : ""
@@ -210,18 +210,18 @@ function FileTreePanel({ workspace }: { workspace: WorkspaceRow }) {
                 style={{ paddingLeft: `${8 + indent}px` }}
               >
                 {entry.is_dir ? (
-                  <span className="text-[10px] text-slate-500 w-3 text-center">
+                  <span className="text-[10px] text-slate-500 w-3 text-center shrink-0">
                     {isCollapsed ? "\u25B8" : "\u25BE"}
                   </span>
                 ) : (
-                  <span className={`text-[6px] ${color} w-3 text-center`}>
+                  <span className={`text-[6px] ${color} w-3 text-center shrink-0`}>
                     {icon}
                   </span>
                 )}
                 <span
-                  className={
+                  className={`truncate ${
                     entry.is_dir ? "text-slate-300" : "text-slate-500"
-                  }
+                  }`}
                 >
                   {entry.name}
                 </span>
@@ -653,7 +653,7 @@ export default function WorkspaceRightPanel({
   return (
     <div className="flex h-full flex-col">
       {/* Tab bar */}
-      <div className="flex items-center border-b border-[#1e2231] shrink-0">
+      <div className="flex items-center border-b border-[#1e2231] shrink-0 overflow-x-auto">
         <button
           onClick={() => setActiveTab("files")}
           className={tabClass("files")}
@@ -744,7 +744,7 @@ export default function WorkspaceRightPanel({
           </div>
         ) : (
           /* Real integrated terminal */
-          <div className="flex flex-col h-full">
+          <div className="flex flex-col h-full min-h-[100px]">
             <TerminalPanel
               cwd={workspace.repo_path}
               terminalId={`ws-terminal-${workspace.id}`}

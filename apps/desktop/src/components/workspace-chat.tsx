@@ -179,13 +179,13 @@ export default function WorkspaceChat({
   return (
     <div className="flex h-full flex-col">
       {/* Chat header */}
-      <div className="flex items-center gap-2 border-b border-[#1e2231] px-4 py-2.5 shrink-0">
-        <div className="flex items-center gap-1.5 rounded-md bg-[#1a1d27] px-2.5 py-1 text-[11px] text-slate-300 font-medium">
-          <span className="text-slate-500">#</span>
-          {workspace.name}
+      <div className="flex items-center gap-2 border-b border-[#1e2231] px-4 py-2.5 shrink-0 overflow-hidden">
+        <div className="flex items-center gap-1.5 rounded-md bg-[#1a1d27] px-2.5 py-1 text-[11px] text-slate-300 font-medium min-w-0">
+          <span className="text-slate-500 shrink-0">#</span>
+          <span className="truncate">{workspace.name}</span>
         </div>
         <div className="flex-1" />
-        <span className="text-[10px] text-slate-600 font-mono">
+        <span className="text-[10px] text-slate-600 font-mono truncate shrink-0 max-w-[120px]">
           {workspace.branch}
         </span>
         {workspace.session_id && (
@@ -225,8 +225,8 @@ export default function WorkspaceChat({
               if (msg.role === "user") {
                 return (
                   <div key={i} className="flex justify-end">
-                    <div className="max-w-[80%] rounded-lg bg-amber-500/15 px-4 py-3">
-                      <p className="text-[13px] text-slate-200 whitespace-pre-wrap">
+                    <div className="max-w-[80%] rounded-lg bg-amber-500/15 px-4 py-3 overflow-hidden">
+                      <p className="text-[13px] text-slate-200 whitespace-pre-wrap break-words">
                         {msg.content}
                       </p>
                     </div>
@@ -245,7 +245,7 @@ export default function WorkspaceChat({
                       Claude
                     </span>
                   </div>
-                  <div className="rounded-lg bg-[#161922] border border-[#1e2231] px-4 py-3">
+                  <div className="rounded-lg bg-[#161922] border border-[#1e2231] px-4 py-3 overflow-hidden">
                     <div className={proseClasses}>
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
                         {msg.content}
@@ -310,8 +310,8 @@ export default function WorkspaceChat({
       </div>
 
       {/* Input bar */}
-      <div className="shrink-0 border-t border-[#1e2231] px-3 py-2.5">
-        <div className="flex items-end gap-2">
+      <div className="shrink-0 border-t border-[#1e2231] px-3 py-2.5 overflow-hidden">
+        <div className="flex items-end gap-2 min-w-0">
           <textarea
             ref={inputRef}
             value={input}
@@ -329,7 +329,7 @@ export default function WorkspaceChat({
             }
             disabled={isBusy}
             rows={1}
-            className="flex-1 resize-none rounded-lg border border-[#1e2231] bg-[#0f1117] px-3 py-2 text-[13px] text-slate-200 placeholder-slate-600 outline-none focus:border-amber-500/50 disabled:opacity-50 max-h-24"
+            className="flex-1 min-w-0 resize-none rounded-lg border border-[#1e2231] bg-[#0f1117] px-3 py-2 text-[13px] text-slate-200 placeholder-slate-600 outline-none focus:border-amber-500/50 disabled:opacity-50 max-h-24"
             style={{ height: "auto", minHeight: "36px" }}
             onInput={(e) => {
               const t = e.target as HTMLTextAreaElement;
@@ -347,7 +347,7 @@ export default function WorkspaceChat({
         </div>
 
         {/* Bottom toolbar: model, thinking, plan */}
-        <div className="flex items-center gap-2 mt-2">
+        <div className="flex items-center gap-2 mt-2 flex-wrap">
           <select
             value={model}
             onChange={(e) => setModel(e.target.value)}

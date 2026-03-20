@@ -167,9 +167,9 @@ function AccountUsageRow({
   }
 
   return (
-    <div className="group px-3 py-3 border-b border-[#1e2231]/50 last:border-b-0 transition-colors hover:bg-[#1a1d27]/50">
+    <div className="group px-3 py-3 border-b border-[#1e2231]/50 last:border-b-0 transition-colors hover:bg-[#1a1d27]/50 overflow-hidden">
       {/* Header: name, plan badge, delete, check button */}
-      <div className="flex items-center gap-2 mb-2.5">
+      <div className="flex items-center gap-2 mb-2.5 min-w-0">
         <span
           className={`h-2 w-2 shrink-0 rounded-full ${
             isRateLimited
@@ -183,7 +183,7 @@ function AccountUsageRow({
               : "bg-emerald-400"
           }`}
         />
-        <span className="text-[13px] font-medium text-slate-200">
+        <span className="text-[13px] font-medium text-slate-200 truncate">
           {account.name}
         </span>
         {plan && (
@@ -565,7 +565,7 @@ export default function Home() {
   // ─── Render ────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col gap-6 p-5">
+    <div className="flex flex-col gap-6 p-5 overflow-y-auto overflow-x-hidden">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-sm font-semibold text-slate-100">Overview</h1>
@@ -613,7 +613,7 @@ export default function Home() {
       )}
 
       {/* Stats strip */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {[
           {
             label: "Active Agents",
@@ -675,10 +675,10 @@ export default function Home() {
         ].map((stat) => (
           <Card
             key={stat.label}
-            className="flex items-center justify-between border-[#1e2231] bg-[#0f1117] px-4 py-3"
+            className="flex items-center justify-between border-[#1e2231] bg-[#0f1117] px-4 py-3 overflow-hidden"
           >
-            <span className="text-[11px] text-slate-500">{stat.label}</span>
-            <span className={`text-sm font-semibold tabular-nums ${stat.color}`}>
+            <span className="text-[11px] text-slate-500 truncate mr-2">{stat.label}</span>
+            <span className={`text-sm font-semibold tabular-nums shrink-0 ${stat.color}`}>
               {stat.value}
             </span>
           </Card>
@@ -780,9 +780,9 @@ export default function Home() {
       </div>
 
       {/* Two-column layout: Sessions + Reviews */}
-      <div className="grid grid-cols-5 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
         {/* Recent Sessions (3/5 width) */}
-        <div className="col-span-3 flex flex-col gap-2">
+        <div className="lg:col-span-3 flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <h2 className="text-[13px] font-medium text-slate-300">
               Recent Sessions
@@ -840,7 +840,7 @@ export default function Home() {
         </div>
 
         {/* Reviews (2/5 width) */}
-        <div className="col-span-2 flex flex-col gap-2">
+        <div className="lg:col-span-2 flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <h2 className="text-[13px] font-medium text-slate-300">Reviews</h2>
             <Button variant="link" size="sm" className="h-auto px-0 py-0 text-[11px] text-slate-500 hover:text-slate-300" asChild>
@@ -881,7 +881,7 @@ export default function Home() {
               {recentReviews.map((review) => (
                 <div
                   key={review.id}
-                  className="flex items-center gap-3 px-3 py-2 border-b border-[#1e2231]/50 last:border-b-0 transition-colors hover:bg-[#1a1d27]"
+                  className="flex items-center gap-3 px-3 py-2 border-b border-[#1e2231]/50 last:border-b-0 transition-colors hover:bg-[#1a1d27] overflow-hidden"
                 >
                   {review.status === "completed" &&
                   review.score_composite != null ? (
@@ -946,7 +946,7 @@ export default function Home() {
               {activeAgents.map((agent) => (
                 <div
                   key={agent.id}
-                  className="flex items-center gap-3 px-3 py-2 border-b border-[#1e2231]/50 last:border-b-0 transition-colors hover:bg-[#1a1d27]"
+                  className="flex items-center gap-3 px-3 py-2 border-b border-[#1e2231]/50 last:border-b-0 transition-colors hover:bg-[#1a1d27] min-w-0 overflow-hidden"
                 >
                   <span
                     className={`h-2 w-2 shrink-0 rounded-full ${
@@ -957,10 +957,10 @@ export default function Home() {
                         : "bg-yellow-400"
                     }`}
                   />
-                  <span className="text-[13px] font-medium text-slate-200 capitalize">
+                  <span className="text-[13px] font-medium text-slate-200 capitalize truncate">
                     {agent.display_name || agent.role || "Agent"}
                   </span>
-                  <span className="text-[11px] text-slate-600 uppercase">
+                  <span className="text-[11px] text-slate-600 uppercase shrink-0">
                     {agent.agent_type}
                   </span>
                   <span className="flex-1" />

@@ -1110,7 +1110,7 @@ function CompactPersonaCard({
       <Tooltip>
         <TooltipTrigger asChild>
           <Card
-            className={`group relative w-full cursor-pointer p-3 transition-colors ${
+            className={`group relative w-full cursor-pointer p-3 transition-colors overflow-hidden ${
               selected
                 ? "border-amber-500/30 bg-amber-500/5"
                 : "bg-[#13151c] hover:border-[#2d3348]"
@@ -1667,8 +1667,8 @@ export default function Agents() {
 
       {/* Two-panel layout */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left panel: Agent Squad (320px) */}
-        <div className="flex w-[320px] shrink-0 flex-col border-r border-[#1e2231]">
+        {/* Left panel: Agent Squad */}
+        <div className="flex w-[320px] min-w-[220px] max-w-[320px] shrink-0 flex-col border-r border-[#1e2231] overflow-hidden">
           <div className="border-b border-[#1e2231] px-4 py-3">
             <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
               Agent Squad
@@ -1813,7 +1813,7 @@ export default function Agents() {
         </div>
 
         {/* Right panel: context-sensitive */}
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
           {rightPanelMode === "agent-conversation" && selectedAgent ? (
             <>
               {/* Conversation header */}
@@ -1853,7 +1853,7 @@ export default function Agents() {
                           {selectedAgent.role ? ` / ${selectedAgent.role}` : ""}
                         </span>
                         {selectedAgent.project_path && (
-                          <span className="mono text-[11px] text-slate-600 truncate max-w-[300px]">
+                          <span className="mono text-[11px] text-slate-600 truncate max-w-[200px]">
                             {selectedAgent.project_path}
                           </span>
                         )}

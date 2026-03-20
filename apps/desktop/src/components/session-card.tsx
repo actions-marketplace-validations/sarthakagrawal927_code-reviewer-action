@@ -69,7 +69,7 @@ export default function SessionCard({
   return (
     <button
       onClick={onClick}
-      className={`group flex w-full flex-col px-3 py-1.5 text-left transition-colors border-l-2 ${
+      className={`group flex w-full flex-col px-3 py-1.5 text-left transition-colors border-l-2 overflow-hidden ${
         selected
           ? "bg-amber-500/8 border-l-amber-400"
           : focused

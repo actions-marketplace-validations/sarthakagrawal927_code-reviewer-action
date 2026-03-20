@@ -541,9 +541,9 @@ export default function Sessions() {
   // ─── Render ────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full overflow-hidden">
       {/* Left panel: session list */}
-      <div className="flex w-[400px] shrink-0 flex-col border-r border-[#1e2231]">
+      <div className="flex w-[400px] min-w-[250px] shrink-0 flex-col border-r border-[#1e2231] overflow-hidden">
         {/* Header */}
         <div className="flex flex-col gap-2 border-b border-[#1e2231] px-3 py-3">
           <div className="flex items-center justify-between">
@@ -689,7 +689,7 @@ export default function Sessions() {
         </div>
 
         {/* Column headers */}
-        <div className="flex items-center gap-3 border-b border-[#1e2231] px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-600">
+        <div className="flex items-center gap-3 border-b border-[#1e2231] px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-600 overflow-hidden shrink-0">
           <span className="w-2" />
           <span className="min-w-0 max-w-[140px]">Project</span>
           <span>Branch</span>
@@ -876,7 +876,7 @@ export default function Sessions() {
       </div>
 
       {/* Right panel: chat viewer */}
-      <div className="flex-1 relative">
+      <div className="flex-1 min-w-0 relative">
         {selectedId && messagesError ? (
           <div className="flex h-full flex-col items-center justify-center text-slate-600 px-8">
             <p className="text-xs text-red-400 mb-1">Failed to load session</p>
