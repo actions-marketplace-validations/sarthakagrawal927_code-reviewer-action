@@ -1517,6 +1517,16 @@ export default function Agents() {
     try {
       setError(null);
       await launchAgent(adapter, path, role || undefined, task || undefined);
+
+      // Create a kanban task so it appears on the board
+      if (task) {
+        const taskTitle = task.length > 80 ? task.slice(0, 77) + "..." : task;
+        const result = await createTask(taskTitle, task, undefined, path || undefined);
+        if (result?.task_id) {
+          await updateTask(result.task_id, "in_progress", role || undefined).catch(() => {});
+        }
+      }
+
       setShowLaunchPanel(false);
       refresh();
     } catch (err) {
@@ -1555,6 +1565,14 @@ export default function Agents() {
       setError(null);
       const fullTask = `You are a ${persona.name}. ${persona.system_prompt}\n\nTask: ${taskDesc}`;
       await launchAgent("claude-code", projectPath, persona.name, fullTask);
+
+      // Create a kanban task and move to in_progress so it shows on the board
+      const taskTitle = taskDesc.length > 80 ? taskDesc.slice(0, 77) + "..." : taskDesc;
+      const result = await createTask(taskTitle, taskDesc, undefined, projectPath || undefined);
+      if (result?.task_id) {
+        await updateTask(result.task_id, "in_progress", persona.name).catch(() => {});
+      }
+
       setSelectedPersona(null);
       refresh();
     } catch (err) {
