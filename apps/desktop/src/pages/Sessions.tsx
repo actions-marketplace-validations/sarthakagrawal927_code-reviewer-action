@@ -4,19 +4,16 @@ import SessionCard from "@/components/session-card";
 import SearchBar from "@/components/search-bar";
 import ChatViewer from "@/components/chat-viewer";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   listSessions,
   getSession,
   searchMessages,
-  mergeSessions,
   triggerIndex,
   getIndexStats,
   onSessionUpdated,
   isTauriAvailable,
   detectRunningAgents,
-  deleteSession,
 } from "@/lib/tauri-ipc";
 import type {
   SessionRow,
@@ -132,19 +129,9 @@ export default function Sessions() {
     { id: string; label: string }[]
   >([]);
 
-  // Multi-select state for merging
-  const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(
-    new Set()
-  );
-  const [mergeMode, setMergeMode] = useState(false);
-  const [showMergeForm, setShowMergeForm] = useState(false);
-  const [mergeName, setMergeName] = useState("");
-  const [isMerging, setIsMerging] = useState(false);
-
   // Re-indexing state
   const [isReindexing, setIsReindexing] = useState(false);
   const [lastIndexedAt, setLastIndexedAt] = useState<string | null>(null);
-  const [showMenu, setShowMenu] = useState(false);
 
   // Subagent state — cached per session, fetched on demand
 
@@ -153,7 +140,7 @@ export default function Sessions() {
 
   // ─── Load sessions ──────────────────────────────────────────────────────
 
-  const SESSIONS_PAGE_SIZE = 100;
+  const SESSIONS_PAGE_SIZE = 10000;
 
   const loadSessions = useCallback(async () => {
     if (fetchingRef.current) return;
@@ -295,50 +282,6 @@ export default function Sessions() {
     },
     []
   );
-
-  // ─── Multi-select toggle ────────────────────────────────────────────────
-
-  const toggleSessionSelection = useCallback((sessionId: string) => {
-    setSelectedSessionIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(sessionId)) {
-        next.delete(sessionId);
-      } else {
-        next.add(sessionId);
-      }
-      return next;
-    });
-  }, []);
-
-  const handleCancelMerge = useCallback(() => {
-    setMergeMode(false);
-    setSelectedSessionIds(new Set());
-    setShowMergeForm(false);
-    setMergeName("");
-  }, []);
-
-  const handleMerge = useCallback(async () => {
-    if (selectedSessionIds.size < 2) return;
-
-    const ids = Array.from(selectedSessionIds);
-    const firstSelected = sessions.find((s) => s.id === ids[0]);
-    if (!firstSelected) return;
-
-    setIsMerging(true);
-    try {
-      await mergeSessions(
-        ids,
-        firstSelected.project_id,
-        mergeName.trim() || undefined
-      );
-      handleCancelMerge();
-      loadSessions();
-    } catch (err) {
-      console.error("Merge failed:", err);
-    } finally {
-      setIsMerging(false);
-    }
-  }, [selectedSessionIds, sessions, mergeName, handleCancelMerge, loadSessions]);
 
   // ─── Subagent expand/collapse ───────────────────────────────────────
 
@@ -516,19 +459,7 @@ export default function Sessions() {
         // Enter to select focused
         if (e.key === "Enter" && focusedIndex >= 0 && focusedIndex < visibleSessions.length) {
           e.preventDefault();
-          const s = visibleSessions[focusedIndex];
-          if (mergeMode) {
-            toggleSessionSelection(s.id);
-          } else {
-            setSelectedId(s.id);
-          }
-          return;
-        }
-
-        // x to toggle selection in merge mode
-        if (e.key === "x" && mergeMode && focusedIndex >= 0 && focusedIndex < visibleSessions.length) {
-          e.preventDefault();
-          toggleSessionSelection(visibleSessions[focusedIndex].id);
+          setSelectedId(visibleSessions[focusedIndex].id);
           return;
         }
       }
@@ -536,7 +467,7 @@ export default function Sessions() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedId, focusedIndex, visibleSessions, mergeMode, toggleSessionSelection]);
+  }, [selectedId, focusedIndex, visibleSessions]);
 
   // ─── Render ────────────────────────────────────────────────────────────
 
@@ -551,7 +482,7 @@ export default function Sessions() {
               <h1 className="text-sm font-semibold text-slate-100">History</h1>
               {!sessionsLoading && (
                 <span className="text-[11px] text-slate-500 tabular-nums">
-                  {filtered.length}
+                  {filtered.length} of {sessions.length}
                   {lastIndexedAt && (
                     <span className="ml-1 text-slate-600">
                       {"\u00B7"} {formatRelativeTime(lastIndexedAt)}
@@ -560,67 +491,26 @@ export default function Sessions() {
                 </span>
               )}
             </div>
-            <div className="relative flex items-center gap-1.5">
-              {mergeMode && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCancelMerge}
-                  className="h-auto px-2 py-1 text-[11px] font-medium bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20"
-                >
-                  Cancel merge
-                </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowMenu((v) => !v)}
-                className="h-auto w-auto p-1 text-slate-500 hover:text-slate-300 hover:bg-[#1a1d27]"
-              >
-                <svg className="h-4 w-4" viewBox="0 0 16 16" fill="currentColor">
-                  <circle cx="8" cy="3" r="1.5" />
-                  <circle cx="8" cy="8" r="1.5" />
-                  <circle cx="8" cy="13" r="1.5" />
-                </svg>
-              </Button>
-              {showMenu && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-                  <div className="absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-lg border border-[#1e2231] bg-[#13151c] py-1 shadow-xl">
-                    <Button
-                      variant="ghost"
-                      onClick={async () => {
-                        setShowMenu(false);
-                        if (isReindexing) return;
-                        setIsReindexing(true);
-                        try {
-                          await triggerIndex();
-                          await Promise.all([loadSessions(), loadMeta()]);
-                        } catch (err) {
-                          console.error("Re-index failed:", err);
-                        } finally {
-                          setIsReindexing(false);
-                        }
-                      }}
-                      disabled={isReindexing}
-                      className="flex w-full items-center gap-2 px-3 py-1.5 h-auto rounded-none text-[12px] text-slate-300 hover:bg-[#1a1d27] justify-start"
-                    >
-                      {isReindexing ? "Indexing..." : "Re-index"}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        setShowMenu(false);
-                        setMergeMode(true);
-                      }}
-                      className="flex w-full items-center gap-2 px-3 py-1.5 h-auto rounded-none text-[12px] text-slate-300 hover:bg-[#1a1d27] justify-start"
-                    >
-                      Merge sessions
-                    </Button>
-                  </div>
-                </>
-              )}
-            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={async () => {
+                if (isReindexing) return;
+                setIsReindexing(true);
+                try {
+                  await triggerIndex();
+                  await Promise.all([loadSessions(), loadMeta()]);
+                } catch (err) {
+                  console.error("Re-index failed:", err);
+                } finally {
+                  setIsReindexing(false);
+                }
+              }}
+              disabled={isReindexing}
+              className="h-auto px-2 py-1 text-[11px] font-medium text-slate-500 hover:text-slate-300 hover:bg-[#1a1d27]"
+            >
+              {isReindexing ? "Indexing..." : "Re-index"}
+            </Button>
           </div>
 
           <SearchBar
@@ -755,22 +645,8 @@ export default function Sessions() {
                   <div key={session.id}>
                     <div
                       data-session-index={i}
-                      className={`group flex items-center border-b border-[#1e2231]/50 ${
-                        mergeMode && selectedSessionIds.has(session.id)
-                          ? "bg-amber-500/5"
-                          : ""
-                      }`}
+                      className="group flex items-center border-b border-[#1e2231]/50"
                     >
-                      {mergeMode && (
-                        <label className="flex items-center justify-center pl-2 shrink-0 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={selectedSessionIds.has(session.id)}
-                            onChange={() => toggleSessionSelection(session.id)}
-                            className="h-3.5 w-3.5 rounded border-slate-600 bg-transparent accent-amber-500 cursor-pointer"
-                          />
-                        </label>
-                      )}
                       <div className="flex-1 min-w-0">
                         <SessionCard
                           session={session}
@@ -778,108 +654,23 @@ export default function Sessions() {
                           focused={focusedIndex === i && !selectedId}
                           isLive={liveSessionIds.has(session.id)}
                           onClick={() => {
-                            if (mergeMode) {
-                              toggleSessionSelection(session.id);
-                            } else {
-                              setSelectedId(session.id);
-                              setFocusedIndex(i);
-                            }
+                            setSelectedId(session.id);
+                            setFocusedIndex(i);
                           }}
                         />
                       </div>
-                      {!mergeMode && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteSession(session.id).then(() => {
-                              setSessions((prev) => prev.filter((s) => s.id !== session.id));
-                              if (selectedId === session.id) {
-                                setSelectedId(null);
-                                setSelectedSession(null);
-                                setSelectedMessages([]);
-                              }
-                            });
-                          }}
-                          className="shrink-0 h-auto w-auto p-1.5 text-slate-700 hover:text-slate-400 opacity-0 group-hover:opacity-100"
-                          title="Delete session"
-                        >
-                          <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        </Button>
-                      )}
                     </div>
                   </div>
                 );
               })}
               {hasMore && (
                 <p className="py-2 text-center text-[10px] text-slate-600">
-                  Showing {visibleCount} of {sessions.length} sessions
+                  Scroll for more ({filtered.length - visibleCount} remaining)
                 </p>
-              )}
-              {hasMoreSessions && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={loadMoreSessions}
-                  disabled={loadingMore}
-                  className="w-full h-auto py-2 text-[11px] text-slate-500 hover:text-slate-300"
-                >
-                  {loadingMore ? "Loading..." : "Load more sessions"}
-                </Button>
               )}
             </div>
           )}
         </div>
-
-        {/* Floating merge action bar */}
-        {mergeMode && selectedSessionIds.size >= 2 && (
-          <div className="border-t border-[#1e2231] bg-[#13151c] p-2">
-            {!showMergeForm ? (
-              <Button
-                variant="outline"
-                onClick={() => setShowMergeForm(true)}
-                className="w-full h-auto px-3 py-2 text-[12px] font-medium text-amber-400 bg-amber-500/10 border-amber-500/20 hover:bg-amber-500/15"
-              >
-                Merge {selectedSessionIds.size} sessions
-              </Button>
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                <Input
-                  type="text"
-                  placeholder="Name (optional)"
-                  value={mergeName}
-                  onChange={(e) => setMergeName(e.target.value)}
-                  className="h-auto px-2.5 py-1.5 text-[12px] border-[#1e2231] bg-[#0f1117] focus-visible:ring-amber-500/50"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleMerge();
-                    if (e.key === "Escape") setShowMergeForm(false);
-                  }}
-                />
-                <div className="flex gap-1.5">
-                  <Button
-                    variant="outline"
-                    onClick={handleMerge}
-                    disabled={isMerging}
-                    className="flex-1 h-auto px-3 py-1.5 text-[12px] font-medium text-amber-400 bg-amber-500/10 border-amber-500/20 hover:bg-amber-500/15"
-                  >
-                    {isMerging ? "Merging..." : "Confirm"}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setShowMergeForm(false)}
-                    className="h-auto px-3 py-1.5 text-[12px] bg-[#1e2231] text-slate-400 hover:text-slate-300"
-                  >
-                    Back
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Right panel: chat viewer */}
