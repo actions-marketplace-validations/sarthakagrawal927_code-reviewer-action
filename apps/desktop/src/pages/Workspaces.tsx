@@ -339,15 +339,47 @@ export default function Workspaces() {
               </Button>
             </div>
           ) : (
-            STATUS_ORDER.map((status) => (
-              <WorkspaceGroup
-                key={status}
-                status={status}
-                workspaces={grouped[status]}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
-              />
-            ))
+            workspaces
+              .filter((ws) => !ws.archived_at)
+              .map((ws) => (
+                <Button
+                  key={ws.id}
+                  variant="ghost"
+                  onClick={() => setSelectedId(ws.id)}
+                  className={`flex flex-col gap-1 px-3 py-2.5 h-auto rounded-none text-left border-b border-[#1e2231]/50 transition-colors w-full ${
+                    selectedId === ws.id
+                      ? "bg-amber-500/5 border-l-2 border-l-amber-500"
+                      : "hover:bg-[#1a1d27] border-l-2 border-l-transparent"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0 w-full">
+                    <span className="text-[13px] font-medium text-slate-200 truncate flex-1">
+                      {ws.name}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-slate-500 w-full">
+                    <span className="font-mono truncate max-w-[120px]">
+                      {ws.branch}
+                    </span>
+                    <span className="text-slate-600">{"·"}</span>
+                    <span className="truncate">{repoName(ws.repo_path)}</span>
+                    {ws.pr_number && (
+                      <>
+                        <span className="text-slate-600">{"·"}</span>
+                        <span className="text-amber-400/60">
+                          #{ws.pr_number}
+                        </span>
+                      </>
+                    )}
+                    {ws.updated_at && (
+                      <>
+                        <span className="text-slate-600">{"·"}</span>
+                        <span>{formatRelativeTime(ws.updated_at)}</span>
+                      </>
+                    )}
+                  </div>
+                </Button>
+              ))
           )}
         </div>
       </div>

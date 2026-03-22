@@ -1158,21 +1158,14 @@ function CompactPersonaCard({
             <p className="text-[11px] text-slate-500 truncate mt-0.5 ml-4">
               {persona.description ? persona.description.split("\\n")[0] : "No description"}
             </p>
-            <div className="flex items-center gap-1.5 mt-1.5 ml-4">
-              {isBusy ? (
+            {isBusy && (
+              <div className="flex items-center gap-1.5 mt-1.5 ml-4">
                 <Badge variant="outline" className="h-5 border-amber-500/30 bg-amber-500/10 text-amber-400 text-[10px] px-1.5 py-0">
                   <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse mr-1" />
-                  {busyAgent.role
-                    ? busyAgent.role.slice(0, 30) + (busyAgent.role.length > 30 ? ".." : "")
-                    : "busy"}
+                  running
                 </Badge>
-              ) : (
-                <Badge variant="outline" className="h-5 border-slate-700 text-slate-500 text-[10px] px-1.5 py-0">
-                  <span className="h-1.5 w-1.5 rounded-full bg-slate-600 mr-1" />
-                  idle
-                </Badge>
-              )}
-            </div>
+              </div>
+            )}
           </Card>
         </TooltipTrigger>
         {persona.description && (
@@ -1625,12 +1618,6 @@ export default function Agents() {
           <span className="text-[13px] text-slate-400">
             {tasks.length} {tasks.length === 1 ? "task" : "tasks"}
           </span>
-          {agents.filter((a) => a.status === "running").length > 0 && (
-            <span className="flex items-center gap-1.5 text-[12px] text-amber-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-              {agents.filter((a) => a.status === "running").length} running
-            </span>
-          )}
         </div>
         <div className="flex items-center gap-2">
           {linearConnected && (
