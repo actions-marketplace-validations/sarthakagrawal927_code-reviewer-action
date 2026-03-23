@@ -1569,16 +1569,6 @@ export default function Agents() {
     try {
       setError(null);
       await launchAgent(adapter, path, role || undefined, task || undefined);
-
-      // Create a kanban task so it appears on the board
-      if (task) {
-        const taskTitle = task.length > 80 ? task.slice(0, 77) + "..." : task;
-        const result = await createTask(taskTitle, task, undefined, path || undefined);
-        if (result?.task_id) {
-          await updateTask(result.task_id, "in_progress", role || undefined).catch(() => {});
-        }
-      }
-
       setShowLaunchPanel(false);
       refresh();
     } catch (err) {
@@ -1619,16 +1609,11 @@ export default function Agents() {
       await launchAgent("claude-code", projectPath, persona.name, fullTask);
 
       if (existingTaskId) {
-        // Update existing task — don't create a duplicate
+        // Assign agent to existing task
         await updateTask(existingTaskId, "in_progress", persona.name).catch(() => {});
-      } else {
-        // Only create a new task when launched from squad card (no existing task)
-        const taskTitle = taskDesc.length > 80 ? taskDesc.slice(0, 77) + "..." : taskDesc;
-        const result = await createTask(taskTitle, taskDesc, undefined, projectPath || undefined);
-        if (result?.task_id) {
-          await updateTask(result.task_id, "in_progress", persona.name).catch(() => {});
-        }
       }
+      // No existingTaskId = launched from squad card — agent runs without a kanban task.
+      // User can create a task separately if they want to track it.
 
       setSelectedPersona(null);
       refresh();
