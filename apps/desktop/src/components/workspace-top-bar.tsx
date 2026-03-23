@@ -16,9 +16,11 @@ function repoName(repoPath: string): string {
 export default function WorkspaceTopBar({
   workspace,
   onShowCreatePr,
+  onShowPrReview,
 }: {
   workspace: WorkspaceRow;
   onShowCreatePr: () => void;
+  onShowPrReview: () => void;
 }) {
   const [remoteInfo, setRemoteInfo] = useState<{
     owner: string;
@@ -58,6 +60,16 @@ export default function WorkspaceTopBar({
         <span className="text-slate-400 font-mono truncate">/{folderName}</span>
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        {/* Review PR button */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onShowPrReview}
+          className="h-auto px-2.5 py-1 text-[11px] font-medium border-[#1e2231] bg-[#0f1117] text-slate-400 hover:text-slate-200"
+        >
+          Review PR
+        </Button>
+
         {/* Open dropdown */}
         <div className="relative">
           <Button

@@ -45,6 +45,7 @@ import {
   createAgentPersona,
   updateAgentPersona,
   deleteAgentPersona,
+  getPreference,
 } from "@/lib/tauri-ipc";
 import type { AgentProcess, Task, ActivityEvent, AgentPreset, AgentPersona, LinearIssue, SessionRow, MessageRow, ReviewTone } from "@/lib/tauri-ipc";
 import { startReviewLoop, continueReviewLoop, getAllActiveLoops, type LoopState } from "@/lib/review-loop";
@@ -1339,6 +1340,7 @@ export default function Agents() {
   const [linearConnected, setLinearConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loopStates, setLoopStates] = useState<Map<string, LoopState>>(new Map());
+  const [maxConcurrent, setMaxConcurrent] = useState(3);
 
   // Agent conversation panel state
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
@@ -1401,6 +1403,11 @@ export default function Agents() {
       checkLinearConnection()
         .then((result) => setLinearConnected(result.connected))
         .catch(() => setLinearConnected(false));
+
+      // Load max_concurrent_agents preference
+      getPreference("max_concurrent_agents")
+        .then((val) => { if (val) setMaxConcurrent(parseInt(val, 10) || 3); })
+        .catch(() => {});
     }
 
     const interval = setInterval(refresh, 5000);
@@ -1486,19 +1493,36 @@ export default function Agents() {
     (async () => {
       let sessionId = selectedAgent.session_id;
 
-      // If no session_id stored, try to find a matching session by project path
+      // If no session_id stored, try to find a matching session by project path + agent_type
       if (!sessionId && selectedAgent.project_path && isTauriAvailable()) {
         setAgentMessagesLoading(true);
         try {
-          const result = await listSessions(undefined, selectedAgent.project_path, 10, 0);
+          const result = await listSessions(undefined, selectedAgent.project_path, 20, 0);
           if (cancelled) return;
           const agentStart = selectedAgent.started_at ? new Date(selectedAgent.started_at).getTime() : 0;
+
+          // Prefer: same agent_type + close start time
           const match = result.find((s: SessionRow) => {
+            if (s.agent_type !== selectedAgent.agent_type) return false;
             const sessionStart = s.first_message ? new Date(s.first_message).getTime() : 0;
-            return Math.abs(sessionStart - agentStart) < 60000;
+            return Math.abs(sessionStart - agentStart) < 120000;
           });
+
+          // Fallback: same agent_type, most recent session (sorted by file_mtime desc)
+          const fallback = !match
+            ? result
+                .filter((s: SessionRow) => s.agent_type === selectedAgent.agent_type)
+                .sort((a, b) => {
+                  const ta = a.file_mtime ? new Date(a.file_mtime).getTime() : 0;
+                  const tb = b.file_mtime ? new Date(b.file_mtime).getTime() : 0;
+                  return tb - ta;
+                })[0]
+            : undefined;
+
           if (match) {
             sessionId = match.id;
+          } else if (fallback) {
+            sessionId = fallback.id;
           }
         } catch {
           // ignore
@@ -1636,6 +1660,21 @@ export default function Agents() {
     return agents.find(
       (a) => a.status === "running" && a.role === persona.name
     ) ?? null;
+  }
+
+  function handleTaskClick(task: Task) {
+    // If task has an assigned agent, find and show its conversation
+    if (task.assigned_agent) {
+      const matchingAgent = agents.find(
+        (a) => a.role === task.assigned_agent || a.id === task.assigned_agent
+      );
+      if (matchingAgent) {
+        setSelectedPersona(null);
+        setSelectedAgentId(matchingAgent.id);
+        return;
+      }
+    }
+    // Otherwise just select the task's project path persona or show nothing
   }
 
   function handleAddTask(column: string) {
@@ -1811,6 +1850,9 @@ export default function Agents() {
             <span className="text-[13px] text-slate-400">
               {tasks.length} {tasks.length === 1 ? "task" : "tasks"}
             </span>
+            <span className="text-[12px] text-slate-500">
+              {agents.filter(a => a.status === "running").length}/{maxConcurrent} agents
+            </span>
           </div>
           <div className="flex items-center gap-2">
             {linearConnected && (
@@ -1939,6 +1981,7 @@ export default function Agents() {
             <KanbanBoard
               tasks={tasks}
               loopStates={loopStates}
+              onTaskClick={handleTaskClick}
               onAddTask={handleAddTask}
               onAssignAgent={(task) => {
                 setPendingAssignTask(task);

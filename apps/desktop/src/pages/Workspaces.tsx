@@ -17,6 +17,7 @@ import WorkspaceRightPanel from "@/components/workspace-right-panel";
 import WorkspaceTopBar from "@/components/workspace-top-bar";
 import CreateWorkspaceModal from "@/components/create-workspace-modal";
 import ReviewDashboard from "@/components/review-dashboard";
+import PrReviewPanel from "@/components/pr-review-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -191,6 +192,7 @@ export default function Workspaces() {
   const [showCreatePr, setShowCreatePr] = useState(false);
   const [showRightPanel, setShowRightPanel] = useState(true);
   const [showReview, setShowReview] = useState(false);
+  const [showPrReview, setShowPrReview] = useState(false);
 
   // ─── Load workspaces ─────────────────────────────────────────────────
 
@@ -387,7 +389,16 @@ export default function Workspaces() {
       {/* Center + Right panels */}
       {selectedWorkspace ? (
         <>
-          {showReview ? (
+          {showPrReview ? (
+            /* ── PR Review Panel (full center area) ── */
+            <div className="flex-1 min-w-0 flex flex-col">
+              <PrReviewPanel
+                key={`pr-review-${selectedWorkspace.id}`}
+                workspace={selectedWorkspace}
+                onClose={() => setShowPrReview(false)}
+              />
+            </div>
+          ) : showReview ? (
             /* ── Review Dashboard (full center area) ── */
             <div className="flex-1 min-w-0 flex flex-col">
               <ReviewDashboard
@@ -403,6 +414,7 @@ export default function Workspaces() {
                 <WorkspaceTopBar
                   workspace={selectedWorkspace}
                   onShowCreatePr={() => setShowCreatePr(true)}
+                  onShowPrReview={() => setShowPrReview(true)}
                 />
                 <div className="flex-1 min-h-0">
                   <WorkspaceChat
