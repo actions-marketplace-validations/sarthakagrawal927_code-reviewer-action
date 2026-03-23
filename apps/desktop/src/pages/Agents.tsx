@@ -1612,17 +1612,22 @@ export default function Agents() {
     }
   }
 
-  async function handleAssignPersona(persona: AgentPersona, taskDesc: string, projectPath: string) {
+  async function handleAssignPersona(persona: AgentPersona, taskDesc: string, projectPath: string, existingTaskId?: string) {
     try {
       setError(null);
       const fullTask = `You are a ${persona.name}. ${persona.system_prompt}\n\nTask: ${taskDesc}`;
       await launchAgent("claude-code", projectPath, persona.name, fullTask);
 
-      // Create a kanban task and move to in_progress so it shows on the board
-      const taskTitle = taskDesc.length > 80 ? taskDesc.slice(0, 77) + "..." : taskDesc;
-      const result = await createTask(taskTitle, taskDesc, undefined, projectPath || undefined);
-      if (result?.task_id) {
-        await updateTask(result.task_id, "in_progress", persona.name).catch(() => {});
+      if (existingTaskId) {
+        // Update existing task — don't create a duplicate
+        await updateTask(existingTaskId, "in_progress", persona.name).catch(() => {});
+      } else {
+        // Only create a new task when launched from squad card (no existing task)
+        const taskTitle = taskDesc.length > 80 ? taskDesc.slice(0, 77) + "..." : taskDesc;
+        const result = await createTask(taskTitle, taskDesc, undefined, projectPath || undefined);
+        if (result?.task_id) {
+          await updateTask(result.task_id, "in_progress", persona.name).catch(() => {});
+        }
       }
 
       setSelectedPersona(null);
@@ -2103,15 +2108,12 @@ export default function Agents() {
                     onClick={() => {
                       setShowPersonaPicker(false);
                       if (pendingAssignTask) {
-                        // Launch directly with task data
+                        // Launch directly with task data — pass existing task ID to avoid duplicates
                         const taskDesc = pendingAssignTask.title +
                           (pendingAssignTask.description ? `\n\n${pendingAssignTask.description}` : "");
                         const projectPath = pendingAssignTask.project_path || "";
                         if (projectPath) {
-                          handleAssignPersona(persona, taskDesc, projectPath);
-                          // Move task to in_progress
-                          updateTask(pendingAssignTask.id, "in_progress", persona.name).catch(() => {});
-                          refresh();
+                          handleAssignPersona(persona, taskDesc, projectPath, pendingAssignTask.id);
                         } else {
                           // No project path on task — fall back to persona detail
                           setSelectedAgentId(null);
