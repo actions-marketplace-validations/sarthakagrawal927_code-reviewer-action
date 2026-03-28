@@ -17,7 +17,7 @@ export function loadApiWorkerConfig(): ApiWorkerConfig {
   }
 
   const authToken = process.env.API_WORKER_AUTH_TOKEN?.trim() || undefined;
-  const corsOrigin = process.env.API_WORKER_CORS_ORIGIN?.trim() || '*';
+  const corsOrigin = process.env.API_WORKER_CORS_ORIGIN?.trim() || 'https://app.codevetter.com';
   const githubApiBaseUrl = process.env.GITHUB_API_BASE_URL?.trim() || 'https://api.github.com';
   const githubDriftCheckToken =
     process.env.GITHUB_DRIFT_CHECK_TOKEN?.trim() ||
