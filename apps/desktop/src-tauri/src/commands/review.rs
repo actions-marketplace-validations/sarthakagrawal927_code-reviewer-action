@@ -180,15 +180,21 @@ pub async fn get_review(db: State<'_, DbState>, id: String) -> Result<Value, Str
     }))
 }
 
-/// List reviews with pagination.
+/// List reviews with pagination and optional repo filter.
 #[tauri::command]
 pub async fn list_reviews(
     db: State<'_, DbState>,
     limit: Option<i64>,
     offset: Option<i64>,
+    repo_path: Option<String>,
 ) -> Result<Value, String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
-    let reviews = queries::list_local_reviews(&conn, limit.unwrap_or(50), offset.unwrap_or(0))
-        .map_err(|e| e.to_string())?;
+    let reviews = queries::list_local_reviews_filtered(
+        &conn,
+        limit.unwrap_or(50),
+        offset.unwrap_or(0),
+        repo_path.as_deref(),
+    )
+    .map_err(|e| e.to_string())?;
     Ok(json!({ "reviews": reviews }))
 }

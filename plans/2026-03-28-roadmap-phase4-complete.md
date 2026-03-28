@@ -49,29 +49,33 @@
 
 ---
 
-### Phase 5: Conductor Polish
-- [x] Concurrency limits enforced (max_concurrent_agents preference checked before launch)
-- [x] Live agent detection on kanban board (running agents show pulsing green "Live" badge)
-- [x] Per-issue workspace isolation (workspace_id FK on agent_tasks, passed through create_task)
-- [x] Multi-turn agent sessions (--resume session_id support in Claude Code adapter)
-- [x] Symphony-style orchestrator (orchestrator.ts: plan→code→review pipeline, retry, auto-advance)
+## Phase 5: Conductor Polish (next)
+
+- [ ] Symphony-style agent orchestration (WORKFLOW.md, auto-polling Linear, retry, reconciliation)
+- [ ] Live session detection (match Claude processes to sessions by cwd)
+- [ ] Per-issue workspace isolation
+- [ ] Concurrency limits + multi-turn agent sessions
 
 ---
 
-### Phase 6: Semantic Indexing
-- [x] Symbol extraction from diffs (regex-based, supports TS/JS/Python/Rust/Go)
-- [x] Token-level Jaccard similarity for fuzzy duplicate detection
-- [x] "You added X but Y already exists" findings (analyzeDiffForDuplicates)
-- [x] review-core semantic module (extractSymbols, findDuplicates, extractAddedCode)
+## Phase 6: Semantic Indexing
+
+Detect duplicate/similar functions to catch agent copy-paste.
+
+- [ ] Embedding-based similarity search for code symbols
+- [ ] "You added X but Y already exists" findings
+- [ ] Tree-sitter symbol extraction + vector storage
 
 ---
 
-### Phase 7: Web App
-- [x] DataProvider abstraction (TauriProvider + HttpProvider, auto-detect environment)
-- [x] GitHub App webhook handler (workers/review: PR opened/synchronize → enqueue review job)
-- [x] Webhook signature verification (HMAC SHA-256)
-- [x] Dashboard web app exists (apps/dashboard on Vercel, Next.js + Radix UI)
-- [x] Landing page with features, hero graphics, CTA (apps/landing-page)
+## Phase 7: Web App
+
+Same React app, stripped down, deployed to Vercel.
+
+- [ ] Abstract Tauri IPC behind provider pattern (Tauri vs HTTP)
+- [ ] GitHub App integration (team-scale, webhook-driven)
+- [ ] Fold useful dashboard pages into shared codebase
+- [ ] Deploy web variant
 
 ---
 

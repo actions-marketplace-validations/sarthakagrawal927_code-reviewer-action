@@ -115,6 +115,7 @@ pub struct AgentTaskRow {
     pub description: Option<String>,
     pub acceptance_criteria: Option<String>,
     pub project_path: Option<String>,
+    pub workspace_id: Option<String>,
     pub status: String,
     pub assigned_agent: Option<String>,
     pub review_id: Option<String>,
@@ -230,6 +231,7 @@ pub struct AgentTaskInput {
     pub description: Option<String>,
     pub acceptance_criteria: Option<String>,
     pub project_path: Option<String>,
+    pub workspace_id: Option<String>,
     pub status: Option<String>,
 }
 
@@ -629,16 +631,33 @@ pub fn list_local_reviews(
     limit: i64,
     offset: i64,
 ) -> Result<Vec<LocalReviewRow>, rusqlite::Error> {
-    let mut stmt = conn.prepare(
+    list_local_reviews_filtered(conn, limit, offset, None)
+}
+
+pub fn list_local_reviews_filtered(
+    conn: &Connection,
+    limit: i64,
+    offset: i64,
+    repo_path: Option<&str>,
+) -> Result<Vec<LocalReviewRow>, rusqlite::Error> {
+    let where_clause = if repo_path.is_some() {
+        "WHERE repo_path = ?3"
+    } else {
+        ""
+    };
+    let sql = format!(
         "SELECT id, review_type, source_label, repo_path, repo_full_name,
                 pr_number, agent_used, score_composite, findings_count,
                 review_action, summary_markdown, status, error_message,
                 started_at, completed_at, created_at
          FROM local_reviews
+         {where_clause}
          ORDER BY created_at DESC
-         LIMIT ?1 OFFSET ?2",
-    )?;
-    let rows = stmt.query_map(params![limit, offset], |row| {
+         LIMIT ?1 OFFSET ?2"
+    );
+    let mut stmt = conn.prepare(&sql)?;
+
+    fn map_row(row: &rusqlite::Row) -> rusqlite::Result<LocalReviewRow> {
         Ok(LocalReviewRow {
             id: row.get(0)?,
             review_type: row.get(1)?,
@@ -657,8 +676,16 @@ pub fn list_local_reviews(
             completed_at: row.get(14)?,
             created_at: row.get(15)?,
         })
-    })?;
-    rows.collect()
+    }
+
+    let results: Vec<LocalReviewRow> = if let Some(rp) = repo_path {
+        stmt.query_map(params![limit, offset, rp], map_row)?
+            .collect::<Result<Vec<_>, _>>()?
+    } else {
+        stmt.query_map(params![limit, offset], map_row)?
+            .collect::<Result<Vec<_>, _>>()?
+    };
+    Ok(results)
 }
 
 pub fn get_local_review_with_findings(
@@ -732,14 +759,15 @@ pub fn create_agent_task(
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
     conn.execute(
-        "INSERT INTO agent_tasks (id, title, description, acceptance_criteria, project_path, status, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT INTO agent_tasks (id, title, description, acceptance_criteria, project_path, workspace_id, status, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![
             id,
             input.title,
             input.description,
             input.acceptance_criteria,
             input.project_path,
+            input.workspace_id,
             input.status.as_deref().unwrap_or("todo"),
             now,
             now,
@@ -781,7 +809,7 @@ pub fn list_agent_tasks(
     status: Option<&str>,
 ) -> Result<Vec<AgentTaskRow>, rusqlite::Error> {
     let mut stmt = conn.prepare(
-        "SELECT id, title, description, acceptance_criteria, project_path, status,
+        "SELECT id, title, description, acceptance_criteria, project_path, workspace_id, status,
                 assigned_agent, review_id, review_score, review_attempts,
                 created_at, updated_at
          FROM agent_tasks
@@ -795,13 +823,14 @@ pub fn list_agent_tasks(
             description: row.get(2)?,
             acceptance_criteria: row.get(3)?,
             project_path: row.get(4)?,
-            status: row.get(5)?,
-            assigned_agent: row.get(6)?,
-            review_id: row.get(7)?,
-            review_score: row.get(8)?,
-            review_attempts: row.get(9)?,
-            created_at: row.get(10)?,
-            updated_at: row.get(11)?,
+            workspace_id: row.get(5)?,
+            status: row.get(6)?,
+            assigned_agent: row.get(7)?,
+            review_id: row.get(8)?,
+            review_score: row.get(9)?,
+            review_attempts: row.get(10)?,
+            created_at: row.get(11)?,
+            updated_at: row.get(12)?,
         })
     })?;
     rows.collect()
@@ -891,6 +920,14 @@ pub fn update_agent_process_status(
         params![id, status, stopped_at],
     )?;
     Ok(())
+}
+
+pub fn count_running_agents(conn: &Connection) -> Result<i64, rusqlite::Error> {
+    conn.query_row(
+        "SELECT COUNT(*) FROM agent_processes WHERE status = 'running'",
+        [],
+        |row| row.get(0),
+    )
 }
 
 pub fn list_agent_processes(conn: &Connection) -> Result<Vec<AgentProcessRow>, rusqlite::Error> {

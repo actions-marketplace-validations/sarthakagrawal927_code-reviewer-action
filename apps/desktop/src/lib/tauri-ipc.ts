@@ -170,6 +170,7 @@ export interface AgentTaskRow {
   description: string | null;
   acceptance_criteria: string | null;
   project_path: string | null;
+  workspace_id: string | null;
   status: string;
   assigned_agent: string | null;
   review_id: string | null;
@@ -349,11 +350,13 @@ export async function getReview(
 
 export async function listReviews(
   limit?: number,
-  offset?: number
+  offset?: number,
+  repoPath?: string
 ): Promise<LocalReviewRow[]> {
   const resp = await safeInvoke<ReviewsResponse>("list_reviews", {
     limit: limit ?? 50,
     offset: offset ?? 0,
+    repo_path: repoPath ?? null,
   });
   return resp.reviews;
 }
@@ -455,7 +458,8 @@ export async function launchAgent(
   projectPath: string,
   role?: string,
   task?: string,
-  reviewId?: string
+  reviewId?: string,
+  resumeSessionId?: string
 ): Promise<{
   agent_id: string;
   adapter: string;
@@ -469,6 +473,7 @@ export async function launchAgent(
     role: role ?? null,
     task: task ?? null,
     reviewId: reviewId ?? null,
+    resumeSessionId: resumeSessionId ?? null,
   });
 }
 
@@ -510,13 +515,15 @@ export async function createTask(
   title: string,
   description: string,
   acceptanceCriteria?: string,
-  projectPath?: string
+  projectPath?: string,
+  workspaceId?: string
 ): Promise<string> {
   return safeInvoke("create_task", {
     title,
     description,
     acceptanceCriteria: acceptanceCriteria ?? null,
     projectPath: projectPath ?? null,
+    workspaceId: workspaceId ?? null,
   });
 }
 

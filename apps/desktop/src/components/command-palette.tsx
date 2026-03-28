@@ -100,6 +100,7 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
       { id: "nav-workspaces", label: "Go to Workspaces", icon: "\u2750", shortcut: "g w", group: "Navigation", action: go("/workspaces") },
       { id: "nav-board", label: "Go to Board", icon: "\u2699", shortcut: "g b", group: "Navigation", action: go("/board") },
       { id: "nav-history", label: "Go to History", icon: "\u2630", shortcut: "g y", group: "Navigation", action: go("/history") },
+      { id: "nav-reviews", label: "Go to Reviews", icon: "\u2714", shortcut: "g r", group: "Navigation", action: go("/reviews") },
       { id: "nav-settings", label: "Go to Settings", icon: "\u2638", shortcut: "g ,", group: "Navigation", action: go("/settings") },
       { id: "nav-usage", label: "Go to Usage", icon: "\u2261", group: "Navigation", action: go("/usage") },
 

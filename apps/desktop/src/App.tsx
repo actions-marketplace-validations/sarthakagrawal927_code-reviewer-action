@@ -13,6 +13,7 @@ import Sessions from "@/pages/Sessions";
 import Agents from "@/pages/Agents";
 import Workspaces from "@/pages/Workspaces";
 
+import Reviews from "@/pages/Reviews";
 import Settings from "@/pages/Settings";
 
 /** Hook: open/close command palette via Cmd+K */
@@ -103,6 +104,7 @@ export default function App() {
         <Route path="/history" element={<Sessions />} />
 
         <Route path="/board" element={<Agents />} />
+        <Route path="/reviews" element={<Reviews />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
     </Routes>
