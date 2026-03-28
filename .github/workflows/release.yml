@@ -36,11 +36,6 @@ jobs:
           cd apps/desktop
           npm install
 
-      - name: Build sidecar
-        run: |
-          cd apps/desktop
-          npm run build:sidecar
-
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
