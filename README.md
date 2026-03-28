@@ -1,75 +1,61 @@
-![CI](https://github.com/sarthakagrawal927/code-reviewer-action/actions/workflows/ci.yml/badge.svg)
+# CodeVetter
 
-# AI Code Reviewer (Enterprise v1)
+AI code review for agent-generated code. Desktop app built with Tauri + React + Rust.
 
-Enterprise control plane for GitHub-backed PR review automation.
+## What it does
 
-## What Ships Now
+- **Reviews agent code** — catches bloat, hallucinated APIs, copy-paste, hardcoded secrets
+- **Feedback loop** — sends findings back to the agent, re-reviews until code passes
+- **PR review** — reviews GitHub PRs via PAT, posts findings as inline comments
+- **Agent orchestration** — kanban board, agent personas, plan/code/review pipeline
+- **Duplicate detection** — finds similar functions across the codebase
 
-- Platform-triggered GitHub Action (`platform_base_url` + `platform_token`)
-- Cloudflare Worker API control plane with:
-  - GitHub OAuth login/session
-  - Workspace RBAC (`owner`, `admin`, `member`, `viewer`)
-  - GitHub installation sync (org + personal account scope)
-  - Workspace default rules + repository overrides
-  - Pull request/review run tracking and manual triggers
-  - Webhook ingestion with signature validation + delivery idempotency
-  - Audit logs and encrypted workspace BYOK secret storage
-- Next.js multi-page dashboard (`apps/dashboard`)
-- Shared DB package (`packages/db`) with Cockroach/Postgres schema + migrations + typed adapters
+## Download
+
+macOS desktop app: [Releases](https://github.com/sarthakagrawal927/CodeVetter/releases)
+
+Requires macOS 12+ and an AI provider API key (Anthropic, OpenAI, or OpenRouter).
 
 ## Monorepo Layout
 
-```text
-.
-├── apps/
-│   ├── dashboard/
-│   └── landing-page/
-├── packages/
-│   ├── shared-types/
-│   ├── db/
-│   └── ai-gateway-client/
-├── workers/
-│   ├── api/
-│   └── review/
+```
+apps/
+  desktop/          Tauri + React + Vite (the product)
+  landing-page/     Next.js marketing site (Vercel)
+  dashboard/        Next.js web dashboard (on hold)
+packages/
+  review-core/      Review engine (prompt, scoring, semantic indexing)
+  ai-gateway-client/  OpenAI-compatible API client
+  shared-types/     Shared TypeScript types
+  db/               Database adapters
+workers/
+  api/              Cloudflare Worker API (on hold)
+  review/           Cloudflare Worker for GitHub App webhooks
 ```
 
-## Build and Test
+## Development
 
 ```bash
-npm run build
+# Install dependencies
+npm install
+
+# Run desktop app
+cd apps/desktop && npm run dev
+
+# Run tests
 npm test
-npm run -w workers/api build
-npm run -w apps/dashboard build
+
+# Build desktop app
+cd apps/desktop && npx @tauri-apps/cli build
 ```
 
-## CockroachDB Wiring
+## Tech Stack
 
-`workers/api` now uses CockroachDB when `COCKROACH_DATABASE_URL` is configured.
-If it is not set (or `DB_USE_IN_MEMORY=true`), the API falls back to in-memory storage.
+- **Frontend**: React 19, Vite, Tailwind CSS, shadcn/ui
+- **Backend**: Rust (Tauri), SQLite
+- **Review engine**: TypeScript (runs in webview, no server needed)
+- **Deployment**: Vercel (landing page), GitHub Actions (DMG release)
 
-Apply schema migrations:
+## License
 
-```bash
-cockroach sql --url "$COCKROACH_DATABASE_URL" < packages/db/migrations/0001_init.sql
-```
-
-## Deployment (Source of Truth)
-
-| Component | Platform | Project Name | Domain | Config File |
-|-----------|----------|-------------|--------|-------------|
-| **Dashboard** | Vercel | `dashboard` | app.codevetter.com | `apps/dashboard/.vercel/project.json` |
-| **Landing Page** | Vercel | `landing-page` | codevetter.com | `apps/landing-page/.vercel/project.json` |
-| **API Worker** | Cloudflare Workers | `code-reviewer-api` | api.codevetter.com | `workers/api/wrangler.toml` |
-| **Review Worker** | Cloudflare Workers | `code-reviewer-worker` | (cron, no public URL) | `workers/review/wrangler.toml` |
-| **Database** | CockroachDB | (managed) | — | via `COCKROACH_DATABASE_URL` secret |
-
-### Vercel Project Linkage
-
-Root `.vercel/project.json` points to `landing-page`. Dashboard and landing page are separate Vercel projects.
-
-> **Note:** The `dashboard` and `landing-page` Vercel projects belong to code-reviewer **only**. SaaS Maker has its own separate Vercel project (`saasmaker-dashboard`).
-
-## Roadmap Docs
-
-- v2 plan: `docs/v2-roadmap.md`
+MIT
